@@ -1,0 +1,142 @@
+
+
+
+
+kissa
+
+
+
+1.0.2
+
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1, in <module>
+    from qiskit import QuantumCircuit, execute, BasicAer
+ImportError: cannot import name 'execute' from 'qiskit' (/opt/anaconda3/lib/python3.11/site-packages/qiskit/__init__.py)
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1, in <module>
+    from qiskit import QuantumCircuit, execute, BasicAer
+ImportError: cannot import name 'execute' from 'qiskit' (/opt/anaconda3/lib/python3.11/site-packages/qiskit/__init__.py)
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 2, in <module>
+    from qiskit.execute_function import execute
+ModuleNotFoundError: No module named 'qiskit.execute_function'
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 16, in <module>
+    backend_sim = BasicAer.get_backend('qasm_simulator')
+                  ^^^^^^^^
+NameError: name 'BasicAer' is not defined
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 16, in <module>
+    sampler = BackendSampler(backend)
+                             ^^^^^^^
+NameError: name 'backend' is not defined
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 15, in <module>
+    backend = Aer.get_backend('qasm_simulator')
+              ^^^
+NameError: name 'Aer' is not defined
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1, in <module>
+    from qiskit import QuantumCircuit, Aer
+ImportError: cannot import name 'Aer' from 'qiskit' (/opt/anaconda3/lib/python3.11/site-packages/qiskit/__init__.py)
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 17, in <module>
+    backend = BasicProvider().get_backend("backend_name")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.11/site-packages/qiskit/providers/basic_provider/basic_provider.py", line 48, in get_backend
+    return super().get_backend(name=name, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.11/site-packages/qiskit/providers/provider.py", line 51, in get_backend
+    backends = self.backends(name, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.11/site-packages/qiskit/providers/basic_provider/basic_provider.py", line 59, in backends
+    raise QiskitBackendNotFoundError(
+qiskit.providers.exceptions.QiskitBackendNotFoundError: "The 'backend_name' backend is not installed in your system."
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 4, in <module>
+    from qiskit_ibm_runtime import QiskitRuntimeService, EstimatorV2 as Estimator
+ModuleNotFoundError: No module named 'qiskit_ibm_runtime'
+
+kissa
+
+
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1
+    print("kissa");\\\//\\
+                    ^
+SyntaxError: unexpected character after line continuation character
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1, in <module>
+    import pennylane as qml
+ModuleNotFoundError: No module named 'pennylane'
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1, in <module>
+    import pennylane as qml
+ModuleNotFoundError: No module named 'pennylane'
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1, in <module>
+    import pennylane as qml
+ModuleNotFoundError: No module named 'pennylane'
+
+
+Traceback (most recent call last):
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 4, in <module>
+    dev = qml.device("lightning.gpu", wires=2, shots=100)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.11/site-packages/pennylane/__init__.py", line 398, in device
+    raise DeviceError(f"Device {name} does not exist. Make sure the required plugin is installed.")
+pennylane._device.DeviceError: Device lightning.gpu does not exist. Make sure the required plugin is installed.
+
+True
+Count of '00': 59
+Count of '11': 41
+
+True
+Count of '00': 59
+Count of '11': 41
+
+True
+Count of '00': 51
+Count of '11': 49
+
+True
+Count of '00': 46
+Count of '11': 54
+
+
+  File "/Users/otsokinanen/Library/Jupyter/kernels/echo/temp.py", line 1
+    !pip install pennylane
+    ^
+SyntaxError: invalid syntax
+
+True
+Count of '00': 52
+Count of '11': 48
+
+True
+Count of '00': 53
+Count of '11': 47
+
