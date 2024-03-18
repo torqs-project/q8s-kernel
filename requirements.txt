@@ -1,4 +1,5 @@
-pip install jupyter
-pip install ipykernel
-pip install pennylane
+pip install notebook==7.0.6
+pip install ipython==8.17.2
+pip install ipykernel==6.26.0
+pip install pennylane==0.35.1
 jupyter kernelspec install ./kernels --name=q8s-kernel --user
