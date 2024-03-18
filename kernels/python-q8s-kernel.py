@@ -2,7 +2,7 @@ from ipykernel.kernelbase import Kernel
 import logging
 import subprocess
 
-class q8sKernel(Kernel):
+class Q8sKernel(Kernel):
     implementation = 'q8s-kernel'
     implementation_version = '0.'
     language = 'no-op'
@@ -49,4 +49,4 @@ class q8sKernel(Kernel):
 
 if __name__ == '__main__':
     from ipykernel.kernelapp import IPKernelApp
-    IPKernelApp.launch_instance(kernel_class=q8sKernel)
+    IPKernelApp.launch_instance(kernel_class=Q8sKernel)
