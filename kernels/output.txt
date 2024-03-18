@@ -140,3 +140,7 @@ True
 Count of '00': 53
 Count of '11': 47
 
+True
+Count of '00': 48
+Count of '11': 52
+
