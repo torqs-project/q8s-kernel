@@ -11,6 +11,11 @@ __pycache__/
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
+#Ignore changes in Notebooks
+Untitled.ipynb
+temp.py
+output.txt
+
 # Ignore Python virtual environments
 venv/
 *.venv

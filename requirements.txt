@@ -1,0 +1,4 @@
+pip install jupyter
+pip install ipykernel
+pip install pennylane
+jupyter kernelspec install ./kernels --name=q8s-kernel --user
