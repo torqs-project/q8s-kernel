@@ -9,4 +9,12 @@ Install dependencies:
 
 The jupyter kernel needs to be installed locally for jupyter notebook to find it. To install the q8s-kernel use the following command from the q8s-kernel directory:
 
-```jupyter kernelspec install ./kernels --name=q8s-kernel --user```
+```jupyter kernelspec install . --name=q8s-kernel --user```
+
+Start the jupyter notebook server:
+
+```jupyter notebook```
+
+or the jupyter lab server:
+
+```jupyter lab```
