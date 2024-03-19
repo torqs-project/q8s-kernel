@@ -3,6 +3,15 @@ Kernel extension for executing quantum programs in simulators on q8s clusters
 
 ## Development
 
+### Prerequisites
+
+The development environment requires the following tools to be installed:
+
+- [Docker](https://www.docker.com/get-started)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+
+### Setup
+
 Install dependencies:
 
 ```pip install -r requirements.txt```
