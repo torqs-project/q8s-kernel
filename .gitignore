@@ -23,3 +23,6 @@ venv/
 
 # Ignore egg-info
 *.egg-info/
+
+# Ignore build
+build/

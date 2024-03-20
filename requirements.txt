@@ -1,5 +1,0 @@
-ipython==8.17.2
-ipykernel==6.26.0
-kubernetes==29.0.0
-notebook==7.0.6
-python_on_whales==0.70.0

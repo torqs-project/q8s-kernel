@@ -34,6 +34,9 @@ CMD ["./entrypoint.sh"]
 requirements_content = """
 qiskit==1.0.0
 qiskit-aer-gpu==0.13.3
+qiskit_algorithms
+numpy
+networkx
 """
 
 entrypoint_content = """
@@ -87,7 +90,7 @@ def print_nodes(api_instance):
 def create_job_object(name="qiskit-aer-gpu", image=TAG_TEMPLATE.substitute(version="latest")):
     # Configureate Pod template container
     container = kubernetes.client.V1Container(
-        name="qiskit-aer-gpu",
+        name=name,
         image=image,
         command=["python3"],
         args=["./main.py"],
@@ -99,7 +102,7 @@ def create_job_object(name="qiskit-aer-gpu", image=TAG_TEMPLATE.substitute(versi
 
     # Create and configurate a spec section
     template = kubernetes.client.V1PodTemplateSpec(
-        metadata=kubernetes.client.V1ObjectMeta(labels={"app": "qiskit-aer-gpu"}),
+        metadata=kubernetes.client.V1ObjectMeta(labels={"app": name}),
         spec=kubernetes.client.V1PodSpec(containers=[container], restart_policy="Never")
     )
 

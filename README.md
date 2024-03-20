@@ -6,7 +6,7 @@ Kernel extension for executing quantum programs in simulators on q8s clusters
 Install the for project folder:
     
 ```bash
-pip install -e .
+pip install .
 ```
 
 ## Development
@@ -22,7 +22,9 @@ The development environment requires the following tools to be installed:
 
 Install dependencies:
 
-```pip install -r requirements.txt```
+```bash
+pip install -e .
+```
 
 The jupyter kernel needs to be installed locally for jupyter notebook to find it. To install the q8s-kernel when using a virtual environment, run the following command:
 
