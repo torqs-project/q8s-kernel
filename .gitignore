@@ -21,9 +21,6 @@ venv/
 *.venv
 .env
 
-#Ignore Devcontainer
-.devcontainer/
-
 # Ignore Docker files
 Dockerfile
 *.dockerignore
