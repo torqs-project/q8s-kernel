@@ -1,3 +1,4 @@
+from time import time
 from ipykernel.kernelbase import Kernel
 import logging
 import subprocess
@@ -21,9 +22,10 @@ class Q8sKernel(Kernel):
                    allow_stdin=False):
         
         if USE_KUBERNETES:
+            start = time()
             output = execute(code)
 
-            stream_content = {'name': 'stdout', 'text': output}
+            stream_content = {'name': 'stdout', 'text': output + f"\nExecution time: {time() - start:.2f} seconds"}
             self.send_response(self.iopub_socket, 'stream', stream_content)
         else:
             if not silent:

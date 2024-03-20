@@ -1,12 +1,14 @@
 import os
+from string import Template
 import tempfile
 import shutil
 from time import sleep, time
+import uuid
 
 from python_on_whales import docker
 import kubernetes
 
-TAG = "vstirbu/qiskit-aer-gpu:1.0.1"
+TAG_TEMPLATE = Template('vstirbu/qiskit-aer-gpu:$version')
 
 dockerfile_content = """
 FROM --platform=amd64 vstirbu/q8s-cuda12
@@ -82,11 +84,11 @@ def print_nodes(api_instance):
         for label, value in node.metadata.labels.items():
             print("%s\t\t%s" % (label, value))
 
-def create_job_object(name="qiskit-aer-gpu"):
+def create_job_object(name="qiskit-aer-gpu", image=TAG_TEMPLATE.substitute(version="latest")):
     # Configureate Pod template container
     container = kubernetes.client.V1Container(
         name="qiskit-aer-gpu",
-        image=TAG,
+        image=image,
         command=["python3"],
         args=["./main.py"],
         resources=kubernetes.client.V1ResourceRequirements(
@@ -165,15 +167,17 @@ def execute(python_file_content: str) -> str:
     else:
         temp_dir = create_temp_directory()
 
+    tag = TAG_TEMPLATE.substitute(version=uuid.uuid4())
+
     prepare_build_folder(temp_dir, python_file_content)
-    image = docker.buildx.build(context_path=temp_dir, tags=[TAG], labels={"qubernetes.cloud/mode": "development"})
+    image = docker.buildx.build(context_path=temp_dir, tags=[tag], labels={"qubernetes.cloud/mode": "development"})
     
     print("built new image: %s" % image)
 
-    docker.image.push(TAG)
+    docker.image.push(tag)
 
     api_instance = kubernetes.client.BatchV1Api()
-    create_job(api_instance, create_job_object())
+    create_job(api_instance, create_job_object(image=tag))
 
     get_job_status(api_instance)
 

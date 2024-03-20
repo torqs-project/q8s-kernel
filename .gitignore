@@ -24,3 +24,6 @@ venv/
 # Ignore Docker files
 Dockerfile
 *.dockerignore
+
+# Ignore egg-info
+*.egg-info/

@@ -6,7 +6,7 @@ Kernel extension for executing quantum programs in simulators on q8s clusters
 Install the for project folder:
     
 ```bash
-pip install .
+pip install -e .
 ```
 
 ## Development
