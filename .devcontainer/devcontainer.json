@@ -1,4 +1,4 @@
 {
     "name": "Q8s Kernel",
-    "dockerFile": "dockerfile"
+    "dockerFile": "Dockerfile"
 }
