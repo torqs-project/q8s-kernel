@@ -4,9 +4,12 @@ import tempfile
 import shutil
 from time import sleep, time
 import uuid
+import logging
 
 from python_on_whales import docker
 import kubernetes
+
+logging.basicConfig(level=logging.INFO)
 
 TAG_TEMPLATE = Template('vstirbu/qiskit-aer-gpu:$version')
 
@@ -121,15 +124,17 @@ def create_job_object(name="qiskit-aer-gpu", image=TAG_TEMPLATE.substitute(versi
 
     return job
 
-def create_job(api_instance, job):
+def create_job(job):
+    api_instance = kubernetes.client.BatchV1Api()
     api_response = api_instance.create_namespaced_job(
         body=job,
         namespace="default"
     )
-    print("Job created. status='%s'" % str(api_response.status))
+    logging.info("Job created. status='%s'" % str(api_response.status))
 
-def get_job_status(api_instance, name="qiskit-aer-gpu"):
+def complete_and_get_job_status(name="qiskit-aer-gpu"):
     job_completed = False
+    api_instance = kubernetes.client.BatchV1Api()
 
     while not job_completed:
         api_response = api_instance.read_namespaced_job_status(name, "default")
@@ -138,22 +143,36 @@ def get_job_status(api_instance, name="qiskit-aer-gpu"):
             job_completed = True
 
         sleep(1)
-        print("Job status='%s'" % str(api_response.status))
+        logging.info("Job status='%s'" % str(api_response.status))
+    
+    return api_response.status
 
-def get_pods_in_job(api_instance, name="qiskit-aer-gpu"):
+def get_pods_in_job(name="qiskit-aer-gpu"):
+    api_instance = kubernetes.client.CoreV1Api()
     api_response = api_instance.list_namespaced_pod("default", label_selector="app=qiskit-aer-gpu")
-    print("Pods in the job='%s'" % str(api_response.items[0].metadata.name))
+    logging.info("Pods in the job='%s'" % str(api_response.items[0].metadata.name))
 
     return api_response.items[0].metadata.name
 
-def get_pod_logs(name="qiskit-aer-gpu"):
+def get_job_logs(name="qiskit-aer-gpu"):
     api_response = kubernetes.client.CoreV1Api().read_namespaced_pod_log(name=name, namespace="default")
-    print("Job logs='%s'" % str(api_response))
+    logging.debug("Job logs='%s'" % str(api_response))
     return api_response
 
 def delete_job(name="qiskit-aer-gpu"):
+    stream = 'stdout'
     api_response = kubernetes.client.BatchV1Api().delete_namespaced_job(name, "default", body=kubernetes.client.V1DeleteOptions(propagation_policy="Foreground"))
-    print("Job deleted. status='%s'" % str(api_response.status))
+    logging.info("Job deleted. status='%s'" % str(api_response.status))
+
+    return api_response
+
+def map_job_status_to_stream(status):
+    if status.succeeded is not None:
+        return "stdout"
+    elif status.failed is not None:
+        return "stderr"
+    else:
+        return "unknown"
 
 def execute(python_file_content: str) -> str:
     # docker_client = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -175,19 +194,24 @@ def execute(python_file_content: str) -> str:
     prepare_build_folder(temp_dir, python_file_content)
     image = docker.buildx.build(context_path=temp_dir, tags=[tag], labels={"qubernetes.cloud/mode": "development"})
     
-    print("built new image: %s" % image)
+    logging.info("built new image: %s" % image)
 
     docker.image.push(tag)
 
-    api_instance = kubernetes.client.BatchV1Api()
-    create_job(api_instance, create_job_object(image=tag))
+    job = create_job_object(image=tag)
 
-    get_job_status(api_instance)
+    create_job(job)
 
-    log = get_pod_logs(get_pods_in_job(kubernetes.client.CoreV1Api()))
+    status = complete_and_get_job_status()
+
+    log = get_job_logs(get_pods_in_job())
 
     delete_job()
 
+    stream = map_job_status_to_stream(status)
+
+    logging.info(stream)
+
     # delete_directory(temp_dir)
 
-    return log
+    return log, stream

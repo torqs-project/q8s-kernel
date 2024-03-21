@@ -23,9 +23,9 @@ class Q8sKernel(Kernel):
         
         if USE_KUBERNETES:
             start = time()
-            output = execute(code)
+            output, stream_name = execute(code)
 
-            stream_content = {'name': 'stdout', 'text': output + f"\nExecution time: {time() - start:.2f} seconds"}
+            stream_content = {'name': stream_name, 'text': output + f"\nExecution time: {time() - start:.2f} seconds"}
             self.send_response(self.iopub_socket, 'stream', stream_content)
         else:
             if not silent:
