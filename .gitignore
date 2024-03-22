@@ -26,3 +26,6 @@ venv/
 
 # Ignore build
 build/
+
+# Development env
+.envrc
