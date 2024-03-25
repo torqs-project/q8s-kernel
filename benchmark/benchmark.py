@@ -2,18 +2,33 @@ from testbook import testbook
 from time import time
 import csv
 
-with open('results.csv', 'w', newline='') as csvfile:
-    fieldnames = ['qubits', 'total', 'simulator']
+with open("results.csv", "w", newline="") as csvfile:
+    fieldnames = ["iteration", "qubits", "overhead", "simulator"]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
 
-    for qubits in range(1, 5):
-        @testbook('test.ipynb', execute=True)
-        def test(tb):
-            start = time()
-            func = tb.get('test_function')
+    @testbook("test.ipynb", execute=True)
+    def warm_up(tb):
+        pass
 
-            simulator = func(qubits)
-            writer.writerow({'qubits': qubits, 'total': time()-start, 'simulator': simulator})
+    warm_up()
 
-        test()
+    for qubits in range(1, 20):
+        for iteration in range(0, 10):
+
+            @testbook("test.ipynb", execute=True)
+            def test(tb):
+                start = time()
+                func = tb.get("test_function")
+
+                simulator = func(qubits)
+                writer.writerow(
+                    {
+                        "iteration": iteration,
+                        "qubits": qubits,
+                        "overhead": time() - start - simulator,
+                        "simulator": simulator,
+                    }
+                )
+
+            test()
