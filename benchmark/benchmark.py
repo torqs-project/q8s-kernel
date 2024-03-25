@@ -26,7 +26,7 @@ with open("results.csv", "w", newline="") as csvfile:
                     {
                         "iteration": iteration,
                         "qubits": qubits,
-                        "overhead": time() - start,
+                        "overhead": time() - start - simulator,
                         "simulator": simulator,
                     }
                 )
