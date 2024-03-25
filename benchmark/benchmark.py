@@ -13,10 +13,10 @@ with open("results.csv", "w", newline="") as csvfile:
 
     warm_up()
 
-    for qubits in range(1, 20):
-        for iteration in range(0, 10):
+    for qubits in range(1, 21):
+        for iteration in range(1, 11):
 
-            @testbook("test.ipynb", execute=True)
+            @testbook("test.ipynb", execute=True, timeout=600)
             def test(tb):
                 start = time()
                 func = tb.get("test_function")
@@ -26,9 +26,10 @@ with open("results.csv", "w", newline="") as csvfile:
                     {
                         "iteration": iteration,
                         "qubits": qubits,
-                        "overhead": time() - start - simulator,
+                        "overhead": time() - start,
                         "simulator": simulator,
                     }
                 )
 
             test()
+            print(f"Finished iteration {iteration} for {qubits} qubits")
