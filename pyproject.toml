@@ -31,3 +31,9 @@ exclude = [
     "paper-benchmarks",
     "playground"
 ]
+
+[project.optional-dependencies]
+benchmark = [
+    "pandas",
+    "testbook"
+]
