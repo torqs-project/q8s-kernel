@@ -27,5 +27,12 @@ venv/
 # Ignore build
 build/
 
+# MLflow
+mlruns/
+mlartifacts/
+
 # Development env
 .envrc
+
+# Kubernetes config
+config.*

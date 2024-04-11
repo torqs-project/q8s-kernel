@@ -1,2 +1,4 @@
 *.csv
 *.pdf
+.docker/
+.docker-deps/

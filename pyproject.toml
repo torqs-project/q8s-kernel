@@ -29,11 +29,17 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 exclude = [
     "paper-benchmarks",
+    "benchmark",
     "playground"
 ]
 
 [project.optional-dependencies]
 benchmark = [
     "pandas",
-    "testbook"
+    "testbook",
+    "mlflow"
+]
+
+development = [
+    "pyre-check",
 ]

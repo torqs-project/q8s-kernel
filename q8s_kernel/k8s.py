@@ -3,51 +3,42 @@ from string import Template
 import tempfile
 import shutil
 from time import sleep, time
-import uuid
 import logging
+import string
+import random
 
 from python_on_whales import docker
-import kubernetes
+from kubernetes import client, config
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 TAG_TEMPLATE = Template("$image:$version")
+NAMESPACE = os.environ.get("NAMESPACE", "default")
+MEMORY = os.environ.get("MEMORY", "8Gi")
 
 dockerfile_content = """
-FROM --platform=amd64 vstirbu/q8s-cuda12
-
-# Set environment variables
-# ARG DEVICE
-# ENV DEVICE=${DEVICE}
-
-# Set the working directory to /backend
-# WORKDIR /backend
-
-# RUN pip install --upgrade pip
-
-COPY requirements.txt .
-COPY entrypoint.sh .
-RUN pip3 install -r requirements.txt
+FROM --platform=amd64 vstirbu/benckmark-deps
 
 COPY main.py .
 
 CMD ["./entrypoint.sh"]
 """
 
-requirements_content = """
-qiskit==1.0.0
-qiskit-aer-gpu==0.13.3
-qiskit_algorithms
-numpy
-networkx
-"""
+# requirements_content = """
+# qiskit==1.0.0
+# qiskit-aer-gpu==0.13.3
+# qiskit_algorithms
+# qiskit_ibm_runtime
+# numpy
+# networkx
+# """
 
-entrypoint_content = """
-#!/bin/bash
+# entrypoint_content = """
+# #!/bin/bash
 
-python3 ./main.py
-"""
+# python3 ./main.py
+# """
 
 
 def list_containers(client):
@@ -79,10 +70,10 @@ def enable_executable(file_path: str):
 
 def prepare_build_folder(temp_dir: str, python_file_content: str):
     write_to_file(temp_dir + "/Dockerfile", dockerfile_content)
-    write_to_file(temp_dir + "/requirements.txt", requirements_content)
-    write_to_file(temp_dir + "/entrypoint.sh", entrypoint_content)
+    # write_to_file(temp_dir + "/requirements.txt", requirements_content)
+    # write_to_file(temp_dir + "/entrypoint.sh", entrypoint_content)
     write_to_file(temp_dir + "/main.py", python_file_content)
-    enable_executable(temp_dir + "/entrypoint.sh")
+    # enable_executable(temp_dir + "/entrypoint.sh")
 
 
 def print_nodes(api_instance):
@@ -99,69 +90,132 @@ def print_nodes(api_instance):
             print("%s\t\t%s" % (label, value))
 
 
-def create_job_object(image, name="qiskit-aer-gpu"):
+def create_config_map_object(code: str, name="app-config"):
+    # Configureate ConfigMap from a local file
+    configmap = client.V1ConfigMap(
+        api_version="v1",
+        kind="ConfigMap",
+        data={"main.py": code},
+        metadata=client.V1ObjectMeta(name=name),
+    )
+
+    result = client.CoreV1Api().create_namespaced_config_map(
+        namespace=NAMESPACE, body=configmap
+    )
+
+    logging.info("ConfigMap created.")
+
+
+def create_job_object(image, code: str, name="qiskit-aer-gpu"):
+    create_config_map_object(code, name=name)
+
+    # print(client.V1ConfigMapKeySelector(name="main.py"))
+
     # Configureate Pod template container
-    container = kubernetes.client.V1Container(
+    container = client.V1Container(
         name=name,
         image=image,
         command=["python3"],
-        args=["./main.py"],
-        resources=kubernetes.client.V1ResourceRequirements(
-            limits={"nvidia.com/gpu": "1"}, requests={"nvidia.com/gpu": "1"}
+        args=["./app/main.py"],
+        resources=client.V1ResourceRequirements(
+            limits={
+                "cpu": "2",
+                "ephemeral-storage": "50Gi",
+                # "memory": "64Gi",
+                "memory": MEMORY,
+                "nvidia.com/gpu": "1",
+            },
+            requests={
+                "cpu": "2",
+                "ephemeral-storage": "0",
+                # "memory": "32Gi",
+                "memory": MEMORY,
+                "nvidia.com/gpu": "1",
+            },
         ),
+        volume_mounts=[
+            client.V1VolumeMount(name="app-volume", mount_path="/app", read_only=True)
+        ],
     )
 
     # Create and configurate a spec section
-    template = kubernetes.client.V1PodTemplateSpec(
-        metadata=kubernetes.client.V1ObjectMeta(labels={"app": name}),
-        spec=kubernetes.client.V1PodSpec(
-            containers=[container], restart_policy="Never"
+    template = client.V1PodTemplateSpec(
+        metadata=client.V1ObjectMeta(labels={"app": name}),
+        spec=client.V1PodSpec(
+            containers=[container],
+            runtime_class_name="nvidia",
+            restart_policy="Never",
+            volumes=[
+                client.V1Volume(
+                    name="app-volume",
+                    config_map=client.V1ConfigMapVolumeSource(name=name),
+                )
+            ],
         ),
     )
 
     # Create the specification of deployment
-    spec = kubernetes.client.V1JobSpec(template=template)
+    spec = client.V1JobSpec(template=template)
 
     # Instantiate the job object
-    job = kubernetes.client.V1Job(
+    job = client.V1Job(
         api_version="batch/v1",
         kind="Job",
-        metadata=kubernetes.client.V1ObjectMeta(name=name),
+        metadata=client.V1ObjectMeta(name=name),
         spec=spec,
     )
 
     return job
 
 
-def create_job(job):
-    api_instance = kubernetes.client.BatchV1Api()
-    api_response = api_instance.create_namespaced_job(body=job, namespace="default")
-    logging.info("Job created. status='%s'" % str(api_response.status))
+def create_job(job: client.V1Job):
+    api_instance = client.BatchV1Api()
+    api_response = api_instance.create_namespaced_job(body=job, namespace=NAMESPACE)
+    logging.info("Job created")
 
 
 def complete_and_get_job_status(name="qiskit-aer-gpu"):
+    job_name = None
     job_completed = False
-    api_instance = kubernetes.client.BatchV1Api()
+    api_instance = client.BatchV1Api()
 
     while not job_completed:
-        api_response = api_instance.read_namespaced_job_status(name, "default")
+        api_response = api_instance.read_namespaced_job_status(name, NAMESPACE)
+
+        logging.info("Job status='%s'" % str(api_response.status.start_time))
 
         if (
             api_response.status.succeeded is not None
             or api_response.status.failed is not None
         ):
             job_completed = True
+        elif api_response.status.active is not None:
+            if job_name is None:
+                job_name = get_pods_in_job(name)
+
+            s = client.CoreV1Api().read_namespaced_pod_status(
+                name=job_name,
+                namespace=NAMESPACE,
+            )
+
+            try:
+                if s.status.container_statuses[0].state.terminated is not None:
+                    if s.status.container_statuses[0].state.terminated.exit_code == 0:
+                        job_completed = True
+            except TypeError:
+                pass
+            finally:
+                logging.info("Pod status='%s'" % str(s.status.phase))
 
         sleep(1)
-        logging.info("Job status='%s'" % str(api_response.status))
 
-    return api_response.status
+    return map_job_status_to_stream(api_response.status)
 
 
 def get_pods_in_job(name="qiskit-aer-gpu"):
-    api_instance = kubernetes.client.CoreV1Api()
+    api_instance = client.CoreV1Api()
     api_response = api_instance.list_namespaced_pod(
-        "default", label_selector="app=qiskit-aer-gpu"
+        NAMESPACE, label_selector=f"app={name}"
     )
     logging.info("Pods in the job='%s'" % str(api_response.items[0].metadata.name))
 
@@ -169,21 +223,27 @@ def get_pods_in_job(name="qiskit-aer-gpu"):
 
 
 def get_job_logs(name="qiskit-aer-gpu"):
-    api_response = kubernetes.client.CoreV1Api().read_namespaced_pod_log(
-        name=name, namespace="default"
+    api_response = client.CoreV1Api().read_namespaced_pod_log(
+        name=name, namespace=NAMESPACE
     )
     logging.debug("Job logs='%s'" % str(api_response))
     return api_response
 
 
 def delete_job(name="qiskit-aer-gpu"):
-    stream = "stdout"
-    api_response = kubernetes.client.BatchV1Api().delete_namespaced_job(
+    api_response = client.BatchV1Api().delete_namespaced_job(
         name,
-        "default",
-        body=kubernetes.client.V1DeleteOptions(propagation_policy="Foreground"),
+        NAMESPACE,
+        body=client.V1DeleteOptions(propagation_policy="Foreground"),
     )
-    logging.info("Job deleted. status='%s'" % str(api_response.status))
+
+    client.CoreV1Api().delete_namespaced_config_map(
+        name,
+        NAMESPACE,
+        body=client.V1DeleteOptions(propagation_policy="Foreground"),
+    )
+
+    logging.info("Job cleanup. status='%s'" % str(api_response.status))
 
     return api_response
 
@@ -197,40 +257,46 @@ def map_job_status_to_stream(status):
         return "unknown"
 
 
-def execute(code: str, temp_dir: str, docker_image: str) -> str:
-    # docker_client = docker.APIClient(base_url='unix://var/run/docker.sock')
-    kubernetes.config.load_kube_config()
+def execute(code: str, temp_dir: str, docker_image: str) -> tuple[str, str]:
+    config.load_kube_config(
+        config_file=os.environ.get(
+            "KUBECONFIG",
+            "/Users/stirbuvl/Documents/code/torqs/vscode-q8s-kernel/config.local",
+        )
+    )
 
     # list_containers(docker_client)
 
-    # print(kubernetes.config.list_kube_config_contexts())
+    # print(config.list_kube_config_contexts())
 
     # print_nodes(api_instance)
 
-    tag = TAG_TEMPLATE.substitute(image=docker_image, version=uuid.uuid4())
+    # tag = TAG_TEMPLATE.substitute(image=docker_image, version=uuid.uuid4())
 
-    prepare_build_folder(temp_dir, code)
-    image = docker.buildx.build(
-        context_path=temp_dir,
-        tags=[tag],
-        labels={"qubernetes.cloud/mode": "development"},
-    )
+    # prepare_build_folder(temp_dir, code)
+    # image = docker.buildx.build(
+    #     context_path=temp_dir,
+    #     tags=[tag],
+    #     labels={"qubernetes.cloud/mode": "development"},
+    # )
 
-    logging.info("built new image: %s" % image)
+    # logging.info("built new image: %s" % image)
 
-    docker.image.push(tag)
+    # docker.image.push(tag)
 
-    job = create_job_object(image=tag)
+    id = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+
+    name = f"qiskit-aer-gpu-{id}"
+
+    job = create_job_object(image="vstirbu/benchmark-deps", code=code, name=name)
 
     create_job(job)
 
-    status = complete_and_get_job_status()
+    stream = complete_and_get_job_status(name=name)
 
-    log = get_job_logs(get_pods_in_job())
+    log = get_job_logs(get_pods_in_job(name=name))
 
-    delete_job()
-
-    stream = map_job_status_to_stream(status)
+    delete_job(name=name)
 
     logging.info(stream)
 
