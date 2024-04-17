@@ -8,17 +8,17 @@ import string
 import random
 
 from python_on_whales import docker
-from kubernetes import client, config
+from kubernetes import client
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 TAG_TEMPLATE = Template("$image:$version")
 NAMESPACE = os.environ.get("NAMESPACE", "default")
-MEMORY = os.environ.get("MEMORY", "8Gi")
+MEMORY = os.environ.get("MEMORY", "32Gi")
 
 dockerfile_content = """
-FROM --platform=amd64 vstirbu/benckmark-deps
+FROM --platform=amd64 vstirbu/benchmark-deps
 
 COPY main.py .
 
@@ -74,20 +74,6 @@ def prepare_build_folder(temp_dir: str, python_file_content: str):
     # write_to_file(temp_dir + "/entrypoint.sh", entrypoint_content)
     write_to_file(temp_dir + "/main.py", python_file_content)
     # enable_executable(temp_dir + "/entrypoint.sh")
-
-
-def print_nodes(api_instance):
-    node_list = api_instance.list_node()
-
-    # print("%s\t\t%s" % ("NAME", "LABELS"))
-    # Patching the node labels
-    for node in node_list.items:
-        # print("%s\t\t%s" % (node.metadata.name, node.metadata.labels))
-        print("%s\t\t%s" % ("NAME", node.metadata.name))
-
-        print("%s\t\t%s" % ("LABEL", "VALUE"))
-        for label, value in node.metadata.labels.items():
-            print("%s\t\t%s" % (label, value))
 
 
 def create_config_map_object(code: str, name="app-config"):
@@ -170,7 +156,7 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
 
 def create_job(job: client.V1Job):
     api_instance = client.BatchV1Api()
-    api_response = api_instance.create_namespaced_job(body=job, namespace=NAMESPACE)
+    api_instance.create_namespaced_job(body=job, namespace=NAMESPACE)
     logging.info("Job created")
 
 
@@ -182,7 +168,7 @@ def complete_and_get_job_status(name="qiskit-aer-gpu"):
     while not job_completed:
         api_response = api_instance.read_namespaced_job_status(name, NAMESPACE)
 
-        logging.info("Job status='%s'" % str(api_response.status.start_time))
+        logging.debug("Job status='%s'" % str(api_response.status.start_time))
 
         if (
             api_response.status.succeeded is not None
@@ -258,19 +244,6 @@ def map_job_status_to_stream(status):
 
 
 def execute(code: str, temp_dir: str, docker_image: str) -> tuple[str, str]:
-    config.load_kube_config(
-        config_file=os.environ.get(
-            "KUBECONFIG",
-            "/Users/stirbuvl/Documents/code/torqs/vscode-q8s-kernel/config.local",
-        )
-    )
-
-    # list_containers(docker_client)
-
-    # print(config.list_kube_config_contexts())
-
-    # print_nodes(api_instance)
-
     # tag = TAG_TEMPLATE.substitute(image=docker_image, version=uuid.uuid4())
 
     # prepare_build_folder(temp_dir, code)
@@ -288,7 +261,7 @@ def execute(code: str, temp_dir: str, docker_image: str) -> tuple[str, str]:
 
     name = f"qiskit-aer-gpu-{id}"
 
-    job = create_job_object(image="vstirbu/benchmark-deps", code=code, name=name)
+    job = create_job_object(image=docker_image, code=code, name=name)
 
     create_job(job)
 

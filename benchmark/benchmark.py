@@ -18,6 +18,8 @@ TARGET = "do"
 ITERATIONS = 1
 MEMORY = "16Gi"
 
+os.environ["Q8S_BECHMARK"] = "1"
+
 if TARGET == "local":
     os.environ["KUBECONFIG"] = (
         "/Users/stirbuvl/Documents/code/torqs/vscode-q8s-kernel/config.local"
