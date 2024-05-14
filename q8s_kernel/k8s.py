@@ -10,6 +10,8 @@ import random
 from python_on_whales import docker
 from kubernetes import client
 
+from .deps.parser import Parser
+
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
@@ -69,10 +71,14 @@ def enable_executable(file_path: str):
 
 
 def prepare_build_folder(temp_dir: str, python_file_content: str):
+    parser = Parser()
+    deps = parser.parse(python_file_content)
+
+    requirements_content = parser.toRequirements(deps)
     write_to_file(temp_dir + "/Dockerfile", dockerfile_content)
-    # write_to_file(temp_dir + "/requirements.txt", requirements_content)
+    write_to_file(temp_dir + "/requirements.txt", requirements_content)
     # write_to_file(temp_dir + "/entrypoint.sh", entrypoint_content)
-    write_to_file(temp_dir + "/main.py", python_file_content)
+    # write_to_file(temp_dir + "/main.py", python_file_content)
     # enable_executable(temp_dir + "/entrypoint.sh")
 
 
