@@ -19,6 +19,8 @@ TAG_TEMPLATE = Template("$image:$version")
 NAMESPACE = os.environ.get("NAMESPACE", "default")
 MEMORY = os.environ.get("MEMORY", "32Gi")
 
+Q8S_USER_LABEL = "qubernetes.dev/user"
+
 dockerfile_content = """
 FROM --platform=amd64 vstirbu/benchmark-deps
 
@@ -149,11 +151,17 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
     # Create the specification of deployment
     spec = client.V1JobSpec(template=template)
 
+    # Find user name
+    whoami = client.AuthenticationV1Api().create_self_subject_review(body={})
+    user = whoami.status.user_info.username.split(":")[-1]
+
     # Instantiate the job object
     job = client.V1Job(
         api_version="batch/v1",
         kind="Job",
-        metadata=client.V1ObjectMeta(name=name),
+        metadata=client.V1ObjectMeta(
+            name=name, namespace=NAMESPACE, labels={Q8S_USER_LABEL: user}
+        ),
         spec=spec,
     )
 
