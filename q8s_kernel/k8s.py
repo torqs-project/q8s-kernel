@@ -160,7 +160,9 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
         api_version="batch/v1",
         kind="Job",
         metadata=client.V1ObjectMeta(
-            name=name, namespace=NAMESPACE, labels={Q8S_USER_LABEL: user}
+            name=name,
+            namespace=NAMESPACE,
+            labels={Q8S_USER_LABEL: user, "qubernetes.dev/job": "jupyter"},
         ),
         spec=spec,
     )
