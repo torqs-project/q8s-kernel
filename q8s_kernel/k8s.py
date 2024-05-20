@@ -84,13 +84,25 @@ def prepare_build_folder(temp_dir: str, python_file_content: str):
     # enable_executable(temp_dir + "/entrypoint.sh")
 
 
-def create_config_map_object(code: str, name="app-config"):
+def create_config_map_object(code: str, job: client.V1Job, name="app-config"):
     # Configureate ConfigMap from a local file
     configmap = client.V1ConfigMap(
         api_version="v1",
         kind="ConfigMap",
         data={"main.py": code},
-        metadata=client.V1ObjectMeta(name=name),
+        metadata=client.V1ObjectMeta(
+            name=name,
+            owner_references=[
+                client.V1OwnerReference(
+                    api_version="v1",
+                    kind="Job",
+                    name=job.metadata.name,
+                    uid=job.metadata.uid,
+                    # block_owner_deletion=True,
+                    # controller=True,
+                )
+            ],
+        ),
     )
 
     result = client.CoreV1Api().create_namespaced_config_map(
@@ -101,8 +113,6 @@ def create_config_map_object(code: str, name="app-config"):
 
 
 def create_job_object(image, code: str, name="qiskit-aer-gpu"):
-    create_config_map_object(code, name=name)
-
     # print(client.V1ConfigMapKeySelector(name="main.py"))
 
     # Configureate Pod template container
@@ -149,31 +159,37 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
     )
 
     # Create the specification of deployment
-    spec = client.V1JobSpec(template=template)
+    spec = client.V1JobSpec(template=template)  # , ttl_seconds_after_finished=10
 
     # Find user name
     whoami = client.AuthenticationV1Api().create_self_subject_review(body={})
     user = whoami.status.user_info.username.split(":")[-1]
 
     # Instantiate the job object
-    job = client.V1Job(
+    job_spec = client.V1Job(
         api_version="batch/v1",
         kind="Job",
         metadata=client.V1ObjectMeta(
             name=name,
             namespace=NAMESPACE,
-            labels={Q8S_USER_LABEL: user, "qubernetes.dev/job": "jupyter"},
+            labels={Q8S_USER_LABEL: user, "qubernetes.dev/job.type": "jupyter"},
         ),
         spec=spec,
     )
 
+    job = create_job(job_spec)
+
+    create_config_map_object(code, job, name=name)
+
     return job
 
 
-def create_job(job: client.V1Job):
+def create_job(job_spec: client.V1Job):
     api_instance = client.BatchV1Api()
-    api_instance.create_namespaced_job(body=job, namespace=NAMESPACE)
+    job = api_instance.create_namespaced_job(body=job_spec, namespace=NAMESPACE)
     logging.info("Job created")
+
+    return job
 
 
 def complete_and_get_job_status(name="qiskit-aer-gpu"):
@@ -277,9 +293,7 @@ def execute(code: str, temp_dir: str, docker_image: str) -> tuple[str, str]:
 
     name = f"qiskit-aer-gpu-{id}"
 
-    job = create_job_object(image=docker_image, code=code, name=name)
-
-    create_job(job)
+    create_job_object(image=docker_image, code=code, name=name)
 
     stream = complete_and_get_job_status(name=name)
 
