@@ -84,6 +84,12 @@ def prepare_build_folder(temp_dir: str, python_file_content: str):
     # enable_executable(temp_dir + "/entrypoint.sh")
 
 
+def whoami() -> str:
+    whoami = client.AuthenticationV1Api().create_self_subject_review(body={})
+
+    return whoami.status.user_info.username.split(":")[-1]
+
+
 def create_config_map_object(code: str, job: client.V1Job, name="app-config"):
     # Configureate ConfigMap from a local file
     configmap = client.V1ConfigMap(
@@ -162,8 +168,7 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
     spec = client.V1JobSpec(template=template)  # , ttl_seconds_after_finished=10
 
     # Find user name
-    whoami = client.AuthenticationV1Api().create_self_subject_review(body={})
-    user = whoami.status.user_info.username.split(":")[-1]
+    user = whoami()
 
     # Instantiate the job object
     job_spec = client.V1Job(
@@ -172,7 +177,10 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
         metadata=client.V1ObjectMeta(
             name=name,
             namespace=NAMESPACE,
-            labels={Q8S_USER_LABEL: user, "qubernetes.dev/job.type": "jupyter"},
+            labels={
+                # Q8S_USER_LABEL: user,
+                "qubernetes.dev/job.type": "jupyter"
+            },
         ),
         spec=spec,
     )
