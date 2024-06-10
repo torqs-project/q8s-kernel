@@ -36,3 +36,6 @@ mlartifacts/
 
 # Kubernetes config
 config.*
+
+playground/
+benchmark/

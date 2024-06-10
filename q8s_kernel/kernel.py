@@ -27,17 +27,6 @@ class Q8sKernel(Kernel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # logging.info(kwargs)
-        if True:
-            self.temp_dir = (
-                # "/var/folders/8n/b8xghht90n19tx0nqqx9qlk80000gp/T/tmp8hytthj6"
-                "/Users/stirbuvl/Documents/code/torqs/vscode-q8s-kernel/benchmark/.docker"
-            )
-        else:
-            self.temp_dir = create_temp_directory()
-            print(self.temp_dir)
-            exit(1)
-
         self.docker_image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
         kubeconfig = os.environ.get("KUBECONFIG", None)
 
