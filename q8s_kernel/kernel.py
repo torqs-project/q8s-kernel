@@ -50,7 +50,7 @@ class Q8sKernel(Kernel):
         logging.info(f"Executing code:\n{code}")
         output, stream_name = execute(
             code,
-            self.temp_dir,
+            None,
             self.docker_image,
         )
 
@@ -95,7 +95,7 @@ def do_execute(
         start = time()
         output, stream_name = execute(
             self.code + "\nprint(" + code.strip() + ")",
-            self.temp_dir,
+            None,
             os.environ["DOCKER_IMAGE"],
         )
 
