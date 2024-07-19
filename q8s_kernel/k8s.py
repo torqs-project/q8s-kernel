@@ -1,3 +1,4 @@
+import base64
 import os
 from string import Template
 import tempfile
@@ -7,6 +8,7 @@ import logging
 import string
 import random
 
+from dotenv import dotenv_values
 from python_on_whales import docker
 from kubernetes import client
 
@@ -19,7 +21,6 @@ TAG_TEMPLATE = Template("$image:$version")
 NAMESPACE = os.environ.get("NAMESPACE", "default")
 MEMORY = os.environ.get("MEMORY", "32Gi")
 
-Q8S_USER_LABEL = "qubernetes.dev/user"
 
 dockerfile_content = """
 FROM --platform=amd64 vstirbu/benchmark-deps
@@ -90,6 +91,53 @@ def whoami() -> str:
     return whoami.status.user_info.username.split(":")[-1]
 
 
+def load_env():
+    env = dotenv_values(".env.q8s")
+
+    # for key in env.keys():
+    #     logging.info(f"{key} = {env[key]}")
+
+    return env
+
+
+def create_environment_secret(
+    # job: client.V1Job,
+    name: str = "app-environment",
+):
+    env = load_env()
+
+    data = {}
+
+    for key in env.keys():
+        data[key] = base64.b64encode(env[key].encode()).decode()
+
+    secret = client.V1Secret(
+        api_version="v1",
+        kind="Secret",
+        type="Opaque",
+        immutable=True,
+        data=data,
+        metadata=client.V1ObjectMeta(
+            name=name,
+            namespace=NAMESPACE,
+            # owner_references=[
+            #     client.V1OwnerReference(
+            #         api_version="v1",
+            #         kind="Job",
+            #         name=job.metadata.name,
+            #         uid=job.metadata.uid,
+            #         # block_owner_deletion=True,
+            #         # controller=True,
+            #     )
+            # ],
+        ),
+    )
+
+    client.CoreV1Api().create_namespaced_secret(namespace=NAMESPACE, body=secret)
+
+    logging.info("Environment created.")
+
+
 def create_config_map_object(code: str, job: client.V1Job, name="app-config"):
     # Configureate ConfigMap from a local file
     configmap = client.V1ConfigMap(
@@ -121,10 +169,26 @@ def create_config_map_object(code: str, job: client.V1Job, name="app-config"):
 def create_job_object(image, code: str, name="qiskit-aer-gpu"):
     # print(client.V1ConfigMapKeySelector(name="main.py"))
 
+    raw = load_env()
+
+    env = []
+
+    for key in raw.keys():
+        env.append(
+            client.V1EnvVar(
+                name=key,
+                value_from=client.V1EnvVarSource(
+                    secret_key_ref=client.V1SecretKeySelector(name=name, key=key)
+                ),
+            )
+        )
+        # env.append(client.V1EnvVar(name=key, value=raw[key]))
+
     # Configureate Pod template container
     container = client.V1Container(
         name=name,
         image=image,
+        env=env,
         command=["python3"],
         args=["./app/main.py"],
         resources=client.V1ResourceRequirements(
@@ -177,10 +241,7 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
         metadata=client.V1ObjectMeta(
             name=name,
             namespace=NAMESPACE,
-            labels={
-                # Q8S_USER_LABEL: user,
-                "qubernetes.dev/job.type": "jupyter"
-            },
+            labels={"qubernetes.dev/job.type": "jupyter"},
         ),
         spec=spec,
     )
@@ -188,6 +249,7 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
     job = create_job(job_spec)
 
     create_config_map_object(code, job, name=name)
+    create_environment_secret(name=name)
 
     return job
 
@@ -268,6 +330,8 @@ def delete_job(name="qiskit-aer-gpu"):
         NAMESPACE,
         body=client.V1DeleteOptions(propagation_policy="Foreground"),
     )
+
+    client.CoreV1Api().delete_namespaced_secret(name, NAMESPACE)
 
     logging.info("Job cleanup. status='%s'" % str(api_response.status))
 
