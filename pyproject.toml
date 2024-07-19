@@ -1,0 +1,32 @@
+[project]
+name = "q8s_kernel"
+version = "0.1.0"
+description = "Kernel extension for executing quantum programs in simulators on q8s clusters"
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["jupyter", "quantum", "kernel"]
+classifiers = [
+  "Development status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+]
+dependencies = [
+  "stdlib-list==0.10.0",
+  "ipython==8.17.2",
+  "ipykernel==6.26.0",
+  "kubernetes==29.0.0",
+  "notebook==7.0.6",
+  "python_on_whales==0.70.0",
+]
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+exclude = ["paper-benchmarks", "benchmark", "playground"]
+
+[project.optional-dependencies]
+benchmark = ["pandas", "testbook", "mlflow"]
+
+development = ["pyre-check"]

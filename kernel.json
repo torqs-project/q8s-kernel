@@ -1,0 +1,5 @@
+{
+    "argv": ["python", "-m", "q8s_kernel", "-f", "{connection_file}"],
+    "display_name": "Python Q8s kernel",
+    "language": "python"
+   }

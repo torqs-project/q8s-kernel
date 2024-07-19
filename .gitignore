@@ -1,0 +1,42 @@
+# Ignore macOS system files
+.DS_Store
+
+# Ignore Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc.so
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+#Ignore changes in Notebooks
+Untitled.ipynb
+temp.py
+output.txt
+
+# Ignore Python virtual environments
+venv/
+*.venv
+.env
+
+# Ignore egg-info
+*.egg-info/
+
+# Ignore build
+build/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Development env
+.envrc
+
+# Kubernetes config
+config.*
+
+playground/
+benchmark/
+paper-benchmarks/
