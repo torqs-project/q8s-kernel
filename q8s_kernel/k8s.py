@@ -166,9 +166,7 @@ def create_config_map_object(code: str, job: client.V1Job, name="app-config"):
     logging.info("ConfigMap created.")
 
 
-def create_job_object(image, code: str, name="qiskit-aer-gpu"):
-    # print(client.V1ConfigMapKeySelector(name="main.py"))
-
+def prepare_environment(name: str):
     raw = load_env()
 
     env = []
@@ -182,7 +180,14 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
                 ),
             )
         )
-        # env.append(client.V1EnvVar(name=key, value=raw[key]))
+
+    return env
+
+
+def create_job_object(image, code: str, name="qiskit-aer-gpu"):
+    # print(client.V1ConfigMapKeySelector(name="main.py"))
+
+    env = prepare_environment(name)
 
     # Configureate Pod template container
     container = client.V1Container(
