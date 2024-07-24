@@ -34,4 +34,4 @@ benchmark = ["pandas", "testbook", "mlflow"]
 development = ["pyre-check"]
 
 [project.scripts]
-q8s = "q8s_kernel.cli:app"
+q8sctl = "q8s_kernel.cli:app"
