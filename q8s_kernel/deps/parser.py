@@ -14,13 +14,23 @@ class Parser:
     def __init__(self) -> None:
         self.installed = packages_distributions()
 
+    def mapToPip(self, package: str) -> str:
+        """
+        Map the package to the pip package.
+        """
+
+        try:
+            return self.installed[package][0]
+        except KeyError:
+            return None
+
     def parse(self, code: str) -> str:
         """
         Parse the code and returns the requirements.
         """
         imports = CodeAnalyzer(code).getImports()
 
-        pips = list(map(lambda x: self.installed[x][0], imports))
+        pips = list(map(self.mapToPip, imports))
 
         return "\n".join(
             list(
