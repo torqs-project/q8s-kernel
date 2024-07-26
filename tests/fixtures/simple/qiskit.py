@@ -18,6 +18,7 @@ def demo_function(shotsAmount=1000):
 
     print("Total count for 00 and 11 are:", counts)
     print(circuit)
+    print(os.environ.get("KEY1", None))
     return counts
 
 
