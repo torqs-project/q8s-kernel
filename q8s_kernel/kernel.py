@@ -52,6 +52,7 @@ class Q8sKernel(Kernel):
             code,
             None,
             self.docker_image,
+            registry_pat=os.environ.get("REGISTRY_PAT", None),
         )
 
         logging.debug(output)

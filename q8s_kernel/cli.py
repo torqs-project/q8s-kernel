@@ -20,6 +20,13 @@ def execute(
         Path, typer.Option(help="Kubernetes configuration", envvar="KUBECONFIG")
     ] = None,
     image: Annotated[str, typer.Option(help="Docker image")] = "vstirbu/benchmark-deps",
+    registry_pat: Annotated[
+        str,
+        typer.Option(
+            help="Registry personal access token (PAT)",
+            envvar="REGISTRY_PAT",
+        ),
+    ] = None,
 ):
     if kubeconfig.exists() is False:
         typer.echo(f"kubeconfig file {kubeconfig} does not exist")
@@ -35,7 +42,7 @@ def execute(
 
     with open(file, "r") as f:
         code = f.read()
-        output, stream_name = execute_k8s(code, None, image)
+        output, stream_name = execute_k8s(code, None, image, registry_pat)
 
         print(f"output:\n{output}")
         print(f"output stream: {stream_name}")
