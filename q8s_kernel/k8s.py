@@ -280,12 +280,14 @@ def create_job_object(image, code: str, name: str, registry_pat: str | None = No
 def create_registry_credentials_secret(
     name: str, image: str, registry_pat: str | None = None
 ):
+    segments = image.split("/")
     # Find user name for images on Docker Hub
-    username = image.split("/")[0]
+    username = segments[0] if len(segments) == 2 else segments[1]
+    registry = segments[0] if len(segments) == 3 else "https://index.docker.io/v1/"
 
     config = {
         "auths": {
-            "https://index.docker.io/v1/": {
+            registry: {
                 "auth": base64.b64encode(
                     f"{username}:{registry_pat}".encode()
                 ).decode(),
