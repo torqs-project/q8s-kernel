@@ -1,4 +1,5 @@
 import base64
+from json import JSONEncoder
 import os
 from string import Template
 import tempfile
@@ -184,7 +185,11 @@ def prepare_environment(name: str):
     return env
 
 
-def create_job_object(image, code: str, name="qiskit-aer-gpu"):
+def registry_credentials_secret_name(name: str):
+    return f"{name}-regcred"
+
+
+def create_job_object(image, code: str, name: str, registry_pat: str | None = None):
     # print(client.V1ConfigMapKeySelector(name="main.py"))
 
     env = prepare_environment(name)
@@ -222,6 +227,15 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
         metadata=client.V1ObjectMeta(labels={"app": name}),
         spec=client.V1PodSpec(
             containers=[container],
+            image_pull_secrets=(
+                [
+                    client.V1LocalObjectReference(
+                        name=registry_credentials_secret_name(name)
+                    )
+                ]
+                if registry_pat
+                else []
+            ),
             runtime_class_name="nvidia",
             restart_policy="Never",
             volumes=[
@@ -237,7 +251,7 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
     spec = client.V1JobSpec(template=template)  # , ttl_seconds_after_finished=10
 
     # Find user name
-    user = whoami()
+    # user = whoami()
 
     # Instantiate the job object
     job_spec = client.V1Job(
@@ -255,8 +269,51 @@ def create_job_object(image, code: str, name="qiskit-aer-gpu"):
 
     create_config_map_object(code, job, name=name)
     create_environment_secret(name=name)
+    if registry_pat:
+        create_registry_credentials_secret(
+            name=name, image=image, registry_pat=registry_pat
+        )
 
     return job
+
+
+def create_registry_credentials_secret(
+    name: str, image: str, registry_pat: str | None = None
+):
+    segments = image.split("/")
+    # Find user name for images on Docker Hub
+    username = segments[0] if len(segments) == 2 else segments[1]
+    registry = segments[0] if len(segments) == 3 else "https://index.docker.io/v1/"
+
+    config = {
+        "auths": {
+            registry: {
+                "auth": base64.b64encode(
+                    f"{username}:{registry_pat}".encode()
+                ).decode(),
+            }
+        }
+    }
+
+    secret = client.V1Secret(
+        api_version="v1",
+        kind="Secret",
+        type="kubernetes.io/dockerconfigjson",
+        immutable=True,
+        metadata=client.V1ObjectMeta(
+            name=registry_credentials_secret_name(name),
+            namespace=NAMESPACE,
+        ),
+        data={
+            ".dockerconfigjson": base64.b64encode(
+                JSONEncoder().encode(config).encode()
+            ).decode(),
+        },
+    )
+
+    client.CoreV1Api().create_namespaced_secret(namespace=NAMESPACE, body=secret)
+
+    logging.info("Registry credentials created.")
 
 
 def create_job(job_spec: client.V1Job):
@@ -323,12 +380,13 @@ def get_job_logs(name="qiskit-aer-gpu"):
     return api_response
 
 
-def delete_job(name="qiskit-aer-gpu"):
-    api_response = client.BatchV1Api().delete_namespaced_job(
-        name,
-        NAMESPACE,
-        body=client.V1DeleteOptions(propagation_policy="Foreground"),
-    )
+def delete_job(name="qiskit-aer-gpu", registry_pat: str | None = None):
+    if registry_pat:
+        client.CoreV1Api().delete_namespaced_secret(
+            registry_credentials_secret_name(name), NAMESPACE
+        )
+
+    client.CoreV1Api().delete_namespaced_secret(name, NAMESPACE)
 
     client.CoreV1Api().delete_namespaced_config_map(
         name,
@@ -336,7 +394,11 @@ def delete_job(name="qiskit-aer-gpu"):
         body=client.V1DeleteOptions(propagation_policy="Foreground"),
     )
 
-    client.CoreV1Api().delete_namespaced_secret(name, NAMESPACE)
+    api_response = client.BatchV1Api().delete_namespaced_job(
+        name,
+        NAMESPACE,
+        body=client.V1DeleteOptions(propagation_policy="Foreground"),
+    )
 
     logging.info("Job cleanup. status='%s'" % str(api_response.status))
 
@@ -352,7 +414,9 @@ def map_job_status_to_stream(status):
         return "unknown"
 
 
-def execute(code: str, temp_dir: str, docker_image: str) -> tuple[str, str]:
+def execute(
+    code: str, temp_dir: str, docker_image: str, registry_pat: str | None = None
+) -> tuple[str, str]:
     # tag = TAG_TEMPLATE.substitute(image=docker_image, version=uuid.uuid4())
 
     # prepare_build_folder(temp_dir, code)
@@ -370,13 +434,15 @@ def execute(code: str, temp_dir: str, docker_image: str) -> tuple[str, str]:
 
     name = f"qiskit-aer-gpu-{id}"
 
-    create_job_object(image=docker_image, code=code, name=name)
+    create_job_object(
+        image=docker_image, code=code, name=name, registry_pat=registry_pat
+    )
 
     stream = complete_and_get_job_status(name=name)
 
     log = get_job_logs(get_pods_in_job(name=name))
 
-    delete_job(name=name)
+    delete_job(name=name, registry_pat=registry_pat)
 
     logging.info(stream)
 
