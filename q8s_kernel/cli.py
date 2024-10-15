@@ -3,7 +3,7 @@ from pathlib import Path
 import typer
 from typing_extensions import Annotated
 from kubernetes import config
-from q8s_kernel.k8s import execute as execute_k8s
+from q8s_kernel.execution import K8sContext
 
 app = typer.Typer()
 
@@ -38,11 +38,16 @@ def execute(
         typer.echo("KUBECONFIG not set")
         raise typer.Exit(code=1)
 
-    config.load_kube_config(kubeconfig)
+    # config.load_kube_config(kubeconfig)
+
+    k8s_context = K8sContext(kubeconfig)
+    k8s_context.set_container_image(image)
+    k8s_context.set_registry_pat(registry_pat)
 
     with open(file, "r") as f:
         code = f.read()
-        output, stream_name = execute_k8s(code, None, image, registry_pat)
+        # output, stream_name = execute_k8s(code, None, image, registry_pat)
+        output, stream_name = k8s_context.execute(code)
 
         print(f"output:\n{output}")
         print(f"output stream: {stream_name}")
