@@ -1,10 +1,10 @@
 import base64
-from json import JSONEncoder
+from json import JSONEncoder, loads
 import os
 from string import Template
 import tempfile
 import shutil
-from time import sleep, time
+from time import sleep
 import logging
 import string
 import random
@@ -208,6 +208,7 @@ def create_job_object(image, code: str, name: str, registry_pat: str | None = No
                 # "memory": "64Gi",
                 "memory": MEMORY,
                 "nvidia.com/gpu": "1",
+                # "qubernetes.dev/qpu": "1",
             },
             requests={
                 "cpu": "2",
@@ -215,6 +216,7 @@ def create_job_object(image, code: str, name: str, registry_pat: str | None = No
                 # "memory": "32Gi",
                 "memory": MEMORY,
                 "nvidia.com/gpu": "1",
+                # "qubernetes.dev/qpu": "1",
             },
         ),
         volume_mounts=[
@@ -385,8 +387,10 @@ def delete_job(name="qiskit-aer-gpu", registry_pat: str | None = None):
         client.CoreV1Api().delete_namespaced_secret(
             registry_credentials_secret_name(name), NAMESPACE
         )
+        logging.info("Registry credentials cleanup")
 
     client.CoreV1Api().delete_namespaced_secret(name, NAMESPACE)
+    logging.info("Environment cleanup")
 
     client.CoreV1Api().delete_namespaced_config_map(
         name,
@@ -398,9 +402,18 @@ def delete_job(name="qiskit-aer-gpu", registry_pat: str | None = None):
         name,
         NAMESPACE,
         body=client.V1DeleteOptions(propagation_policy="Foreground"),
+        _preload_content=False,
     )
 
-    logging.info("Job cleanup. status='%s'" % str(api_response.status))
+    try:
+        data = loads(api_response.data)
+
+        logging.info(
+            "Job cleanup. status='%s'" % str(data["status"]["conditions"][0]["type"])
+        )
+    except:
+        logging.info(api_response.status)
+        logging.info("Job cleanup. status='%s'" % str(api_response.status))
 
     return api_response
 
@@ -432,7 +445,7 @@ def execute(
 
     id = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
-    name = f"qiskit-aer-gpu-{id}"
+    name = f"qubernetes-job-{id}"
 
     create_job_object(
         image=docker_image, code=code, name=name, registry_pat=registry_pat
