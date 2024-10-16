@@ -2,17 +2,14 @@ from json import loads
 import logging
 import random
 import string
+from time import sleep
 from dotenv import dotenv_values
 from kubernetes import client, config
 
-from .k8s import (
-    complete_and_get_job_status,
-    create_job_object,
-    get_job_logs,
-    get_pods_in_job,
-)
+from .k8s import create_job_object
 
-FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
+
+FORMAT = "[%(levelname)s %(asctime)-15s q8s_context] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 
@@ -91,6 +88,67 @@ class K8sContext:
         logging.debug("Job logs='%s'" % str(api_response))
         return api_response
 
+    def __get_pods_in_job(self):
+        pods = self.core_api_instance.list_namespaced_pod(
+            self.namespace, label_selector=f"app={self.name}"
+        )
+
+        pod_name = pods.items[0].metadata.name
+
+        logging.info("Pods in the job='%s'" % str(pod_name))
+
+        return pod_name
+
+    def __complete_and_get_job_status(self):
+        pod_name = None
+        job_completed = False
+
+        while not job_completed:
+            api_response = self.batch_api_instance.read_namespaced_job_status(
+                self.name, self.namespace
+            )
+
+            logging.debug("Job status='%s'" % str(api_response.status.start_time))
+
+            if (
+                api_response.status.succeeded is not None
+                or api_response.status.failed is not None
+            ):
+                job_completed = True
+            elif api_response.status.active is not None:
+                if pod_name is None:
+                    pod_name = self.__get_pods_in_job()
+
+                s = self.core_api_instance.read_namespaced_pod_status(
+                    name=pod_name,
+                    namespace=self.namespace,
+                )
+
+                try:
+                    if s.status.container_statuses[0].state.terminated is not None:
+                        if (
+                            s.status.container_statuses[0].state.terminated.exit_code
+                            == 0
+                        ):
+                            job_completed = True
+                except TypeError:
+                    pass
+                finally:
+                    logging.info("Pod status='%s'" % str(s.status.phase))
+
+            sleep(1)
+
+        return self.__map_job_status_to_stream(api_response.status)
+
+    def __map_job_status_to_stream(self, status):
+        logging.debug("Job status='%s'" % str(status))
+        if status.succeeded is not None:
+            return "stdout"
+        elif status.failed is not None:
+            return "stderr"
+        else:
+            return "unknown"
+
     def execute(self, code: str) -> tuple[str, str]:
         try:
             create_job_object(
@@ -100,10 +158,10 @@ class K8sContext:
                 registry_pat=self.registry_pat,
             )
 
-            stream = complete_and_get_job_status(name=self.name)
+            stream = self.__complete_and_get_job_status()
 
-            jobs = get_pods_in_job(name=self.name)
-            logs = self.__get_job_logs(jobs)
+            job = self.__get_pods_in_job()
+            logs = self.__get_job_logs(job)
 
             return logs, stream
         except:
