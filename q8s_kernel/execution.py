@@ -375,7 +375,13 @@ class K8sContext:
             logs = self.__get_job_logs(job)
 
             return logs, stream
+        except KeyboardInterrupt:
+            return "Task interrupted by user", "stderr"
         except:
             logging.info("An error occurred.")
+            return "An error occurred.", "stderr"
         finally:
             self.__delete_job()
+
+    def abort(self):
+        self.__delete_job()
