@@ -33,7 +33,7 @@ class Q8sKernel(Kernel):
             logging.error("KUBECONFIG not set")
             exit(1)
 
-        self.k8s_context = K8sContext(kubeconfig)
+        self.k8s_context = K8sContext(kubeconfig, self.progress)
         self.k8s_context.set_container_image(self.docker_image)
         self.k8s_context.set_registry_pat(os.environ.get("REGISTRY_PAT", None))
 
@@ -70,3 +70,8 @@ class Q8sKernel(Kernel):
             "payload": [],
             "user_expressions": {},
         }
+
+    def progress(self, msg):
+        self.send_response(
+            self.iopub_socket, "stream", {"name": "stdout", "text": f"{msg}\n"}
+        )

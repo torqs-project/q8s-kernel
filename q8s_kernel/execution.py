@@ -27,8 +27,9 @@ def load_env():
 class K8sContext:
     container_image: str = "vsirbu/benchmark-deps"
     registry_pat: str | None = None
+    jupyter_logger: None
 
-    def __init__(self, kubeconfig: str):
+    def __init__(self, kubeconfig: str, logger=None):
         config.load_kube_config(kubeconfig)
         logging.info("Kubeconfig loaded")
 
@@ -43,6 +44,8 @@ class K8sContext:
         self.name = f"qubernetes-job-{K8sContext.get_id()}"
 
         self.__env = load_env()
+
+        self.jupyter_logger = logger
 
     @staticmethod
     def get_id():
@@ -334,6 +337,8 @@ class K8sContext:
                     pass
                 finally:
                     logging.info("Pod status='%s'" % str(s.status.phase))
+                    if self.jupyter_logger is not None:
+                        self.jupyter_logger(f"Pod status: {s.status.phase}")
 
             sleep(1)
 
@@ -368,6 +373,9 @@ class K8sContext:
     def execute(self, code: str) -> tuple[str, str]:
         try:
             self.__create_job_object(code=code)
+
+            if self.jupyter_logger is not None:
+                self.jupyter_logger(f"Job {self.name} created")
 
             stream = self.__complete_and_get_job_status()
 
