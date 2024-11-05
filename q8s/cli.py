@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
 import typer
+import sys
 from typing_extensions import Annotated
-from kubernetes import config
-from q8s_kernel.execution import K8sContext
+from q8s.execution import K8sContext
+from q8s.install import install_my_kernel_spec
 
 app = typer.Typer()
 
@@ -51,6 +52,21 @@ def execute(
 
         print(f"output:\n{output}")
         print(f"output stream: {stream_name}")
+
+
+@app.command()
+def jupyter(
+    install: Annotated[
+        bool,
+        typer.Option(
+            help="Install kernel spec for Jupyter",
+        ),
+    ] = False,
+):
+    print("install:", install)
+    if install:
+        install_my_kernel_spec(user=False, prefix=sys.prefix)
+        # install_my_kernel_spec(user=user, prefix=prefix)
 
 
 # if __name__ == "__main__":

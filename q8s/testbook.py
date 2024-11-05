@@ -3,7 +3,7 @@ from time import time
 from ipykernel.kernelbase import Kernel
 import logging
 
-from q8s_kernel.kernel import Q8sKernel
+from q8s.kernel import Q8sKernel
 
 from .k8s import execute
 

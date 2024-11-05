@@ -2,7 +2,7 @@ import os
 from ipykernel.kernelbase import Kernel
 import logging
 
-from q8s_kernel.execution import K8sContext
+from q8s.execution import K8sContext
 
 USE_KUBERNETES = True
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
@@ -18,8 +18,10 @@ class Q8sKernel(Kernel):
     language_version = "0.1"
     language_info = {
         "name": "Any text",
-        "mimetype": "text/plain",
-        "file_extension": ".txt",
+        "mimetype": "text/x-python",
+        "pygments_lexer": "ipython%d" % 3,
+        "file_extension": ".py",
+        "nbconvert_exporter": "python",
     }
     banner = "q8s"
 

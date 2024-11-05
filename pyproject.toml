@@ -1,5 +1,5 @@
 [project]
-name = "q8s_kernel"
+name = "q8s"
 version = "0.1.0"
 description = "Kernel extension for executing quantum programs in simulators on q8s clusters"
 readme = "README.md"
@@ -10,16 +10,16 @@ classifiers = [
   "Intended Audience :: Developers",
 ]
 dependencies = [
-  "stdlib-list==0.10.0",
-  "ipython==8.17.2",
+  # "stdlib-list==0.10.0",
+  # "ipython==8.17.2",
   "ipykernel==6.26.0",
   "kubernetes==29.0.0",
-  "notebook==7.0.6",
-  "python_on_whales==0.70.0",
+  # "notebook==7.0.6",
+  # "python_on_whales==0.70.0",
   "python-dotenv==1.0.1",
   "typer==0.12.3",
 ]
-requires-python = ">= 3.8"
+# requires-python = ">= 3.8"
 
 [build-system]
 requires = ["setuptools >= 61.0"]
@@ -34,4 +34,4 @@ benchmark = ["pandas", "testbook", "mlflow"]
 development = ["pyre-check"]
 
 [project.scripts]
-q8sctl = "q8s_kernel.cli:app"
+q8sctl = "q8s.cli:app"
