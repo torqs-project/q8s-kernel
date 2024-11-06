@@ -1,42 +1,37 @@
-# q8s-kernel
+# q8s
 
-Kernel extension for executing quantum programs in simulators on q8s clusters
+Toolset for executing quantum jobs on [Qubernetes](https://www.qubernetes.dev).
 
 ## Installation
 
 Install the for project folder:
 
 ```bash
-pip install .
+pip install q8s
 ```
 
-## Development
+## Usage
 
-### Prerequisites
+### CLI
 
-The development environment requires the following tools to be installed:
-
-- [Docker](https://www.docker.com/get-started)
-- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-
-### Setup
-
-Install dependencies:
+Sumbit a job to the Qubernetes cluster:
 
 ```bash
-pip install -e .
+q8sctl execute app.py --kubeconfig /path/to/kubeconfig
 ```
 
-The jupyter kernel needs to be installed locally for jupyter notebook to find it. To install the q8s-kernel when using a virtual environment, run the following command:
+For more options, run:
 
 ```bash
-jupyter kernelspec install . --name=q8s-kernel --sys-prefix
+q8sctl execute --help
 ```
 
-otherwise, run the following command:
+### Jupyter Notebook
+
+Install the `q8s-kernel`:
 
 ```bash
-jupyter kernelspec install . --name=q8s-kernel --user
+q8sctl jupyter --install
 ```
 
 Start the jupyter notebook server:
@@ -49,4 +44,28 @@ or the jupyter lab server:
 
 ```bash
 jupyter lab
+```
+
+Select the `Q8s kernel` when creating a new notebook.
+
+## Development
+
+### Prerequisites
+
+The development environment requires the following tools to be installed:
+
+- [Docker](https://www.docker.com/get-started)
+
+### Setup
+
+Install the project in editable mode:
+
+```bash
+pip install -e .
+```
+
+If the project is installed in a virtual environment, the `q8s-kernel` can be installed by running the following command:
+
+```bash
+q8sctl jupyter --install
 ```
