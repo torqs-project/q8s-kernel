@@ -7,7 +7,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 keywords = ["jupyter", "quantum", "kernel"]
 classifiers = [
-  "Development status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
