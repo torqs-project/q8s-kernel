@@ -1,4 +1,5 @@
 import base64
+from enum import Enum
 from json import JSONEncoder, loads
 import logging
 import os
@@ -15,6 +16,12 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 MEMORY = os.environ.get("MEMORY", "32Gi")
 
 
+class Target(str, Enum):
+    cpu = "cpu"
+    gpu = "gpu"
+    qpu = "qpu"
+
+
 def load_env():
     env = dotenv_values(".env.q8s")
 
@@ -28,8 +35,12 @@ class K8sContext:
     container_image: str = "vsirbu/benchmark-deps"
     registry_pat: str | None = None
     jupyter_logger: None
+    target: Target = Target.gpu
 
     def __init__(self, kubeconfig: str, logger=None):
+        """
+        Initialize the Kubernetes context.
+        """
         config.load_kube_config(kubeconfig)
         logging.info("Kubeconfig loaded")
 
@@ -49,6 +60,9 @@ class K8sContext:
 
     @staticmethod
     def get_id():
+        """
+        Generate a random ID.
+        """
         return "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
     def set_container_image(self, image: str):
@@ -57,6 +71,9 @@ class K8sContext:
     def set_registry_pat(self, pat: str):
         self.registry_pat = pat
 
+    def set_target(self, target: Target):
+        self.target = target
+
     def create_job_object(self, code: str) -> client.V1Job:
         return None
 
@@ -64,6 +81,9 @@ class K8sContext:
         return f"{self.name}-regcred"
 
     def __create_job_object(self, code: str):
+        """
+        Create a job object with the given code.
+        """
         env = self.__prepare_environment()
 
         # Configureate Pod template container
@@ -73,23 +93,29 @@ class K8sContext:
             env=env,
             command=["python3"],
             args=["./app/main.py"],
-            resources=client.V1ResourceRequirements(
-                limits={
-                    "cpu": "2",
-                    "ephemeral-storage": "50Gi",
-                    # "memory": "64Gi",
-                    "memory": MEMORY,
-                    "nvidia.com/gpu": "1",
-                    # "qubernetes.dev/qpu": "1",
-                },
-                requests={
-                    "cpu": "2",
-                    "ephemeral-storage": "0",
-                    # "memory": "32Gi",
-                    "memory": MEMORY,
-                    "nvidia.com/gpu": "1",
-                    # "qubernetes.dev/qpu": "1",
-                },
+            resources=(
+                client.V1ResourceRequirements(
+                    limits=(
+                        {
+                            "cpu": "2",
+                            "ephemeral-storage": "50Gi",
+                            "memory": MEMORY,
+                            "nvidia.com/gpu": "1",
+                            # "qubernetes.dev/qpu": "1",
+                        }
+                    ),
+                    requests=(
+                        {
+                            "cpu": "2",
+                            "ephemeral-storage": "0",
+                            "memory": MEMORY,
+                            "nvidia.com/gpu": "1",
+                            # "qubernetes.dev/qpu": "1",
+                        }
+                    ),
+                )
+                if self.target == Target.gpu
+                else None
             ),
             volume_mounts=[
                 client.V1VolumeMount(
@@ -112,7 +138,7 @@ class K8sContext:
                     if self.registry_pat
                     else []
                 ),
-                runtime_class_name="nvidia",
+                runtime_class_name="nvidia" if self.target == Target.gpu else None,
                 restart_policy="Never",
                 volumes=[
                     client.V1Volume(
@@ -151,6 +177,9 @@ class K8sContext:
         return job
 
     def __create_config_map_object(self, code: str, job: client.V1Job):
+        """
+        Create a ConfigMap object with the given code.
+        """
         # Configureate ConfigMap from a local file
         configmap = client.V1ConfigMap(
             api_version="v1",
@@ -178,6 +207,9 @@ class K8sContext:
         logging.info("ConfigMap created.")
 
     def __create_environment_secret(self):
+        """
+        Create a Secret object with the environment variables.
+        """
         data = {}
 
         for key in self.__env.keys():
@@ -212,6 +244,9 @@ class K8sContext:
         logging.info("Environment created.")
 
     def __create_registry_credentials_secret(self):
+        """
+        Create a Secret object with the registry credentials.
+        """
         segments = self.container_image.split("/")
         # Find user name for images on Docker Hub
         username = segments[0] if len(segments) == 2 else segments[1]
@@ -250,6 +285,9 @@ class K8sContext:
         logging.info("Registry credentials created.")
 
     def __delete_job(self):
+        """
+        Delete the job and its associated resources.
+        """
         if self.registry_pat:
             self.core_api_instance.delete_namespaced_secret(
                 self.__registry_credentials_secret_name(), self.namespace
@@ -284,6 +322,9 @@ class K8sContext:
             logging.info("Job removed. status='%s'" % str(api_response.status))
 
     def __get_job_logs(self, name="qiskit-aer-gpu"):
+        """
+        Get the logs of the job.
+        """
         api_response = self.core_api_instance.read_namespaced_pod_log(
             name=name, namespace=self.namespace
         )
@@ -291,6 +332,9 @@ class K8sContext:
         return api_response
 
     def __get_pods_in_job(self):
+        """
+        Get the pods in the job.
+        """
         pods = self.core_api_instance.list_namespaced_pod(
             self.namespace, label_selector=f"app={self.name}"
         )
@@ -302,6 +346,9 @@ class K8sContext:
         return pod_name
 
     def __complete_and_get_job_status(self):
+        """
+        Wait for the job to complete and get its status.
+        """
         pod_name = None
         job_completed = False
 
@@ -354,6 +401,9 @@ class K8sContext:
             return "unknown"
 
     def __prepare_environment(self):
+        """
+        Prepare the environment variables.
+        """
         env = []
 
         for key in self.__env.keys():
@@ -371,6 +421,9 @@ class K8sContext:
         return env
 
     def execute(self, code: str) -> tuple[str, str]:
+        """
+        Execute the given code.
+        """
         try:
             self.__create_job_object(code=code)
 
@@ -392,4 +445,7 @@ class K8sContext:
             self.__delete_job()
 
     def abort(self):
+        """
+        Abort the execution.
+        """
         self.__delete_job()
