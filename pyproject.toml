@@ -1,6 +1,6 @@
 [project]
 name = "q8s"
-version = "0.1.0"
+version = "0.2.0"
 description = "Kernel extension for executing quantum programs in simulators on q8s clusters"
 authors = [{ name = "Vlad Stirbu", email = "vstirbu@gmail.com" }]
 readme = "README.md"
