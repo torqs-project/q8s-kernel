@@ -3,7 +3,7 @@ from pathlib import Path
 import typer
 import sys
 from typing_extensions import Annotated
-from q8s.execution import K8sContext
+from q8s.execution import K8sContext, Target
 from q8s.install import install_my_kernel_spec
 
 app = typer.Typer()
@@ -17,6 +17,9 @@ def build(tag: str = None):
 @app.command()
 def execute(
     file: Annotated[Path, typer.Argument(help="Python file to be executed")],
+    target: Annotated[
+        Target, typer.Option(help="Execution target", case_sensitive=False)
+    ] = Target.gpu,
     kubeconfig: Annotated[
         Path, typer.Option(help="Kubernetes configuration", envvar="KUBECONFIG")
     ] = None,
@@ -42,6 +45,7 @@ def execute(
     # config.load_kube_config(kubeconfig)
 
     k8s_context = K8sContext(kubeconfig)
+    k8s_context.set_target(target)
     k8s_context.set_container_image(image)
     k8s_context.set_registry_pat(registry_pat)
 
