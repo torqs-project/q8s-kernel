@@ -46,7 +46,10 @@ class K8sContext:
 
         _, active_context = config.list_kube_config_contexts(config_file=kubeconfig)
 
-        self.namespace = active_context["context"]["namespace"]
+        try:
+            self.namespace = active_context["context"]["namespace"]
+        except KeyError:
+            self.namespace = "default"
         logging.info("Active namespace: %s" % self.namespace)
 
         self.core_api_instance = client.CoreV1Api()
