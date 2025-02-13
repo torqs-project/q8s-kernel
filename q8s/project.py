@@ -1,0 +1,215 @@
+from dataclasses import dataclass
+from pathlib import Path
+from io import StringIO
+from os.path import join
+from os import system
+from typing import List, Optional
+from rich.progress import Progress
+import yaml
+from dacite import from_dict
+
+
+def load(path: str):
+    """
+    Load the project configuration from the Q8Sproject file
+    """
+    with open(join(path, "Q8Sproject"), "r") as f:
+        return yaml.safe_load(f)
+
+
+def rmdir(directory):
+    """
+    Recursively remove a directory and its contents
+    """
+    directory = Path(directory)
+
+    for item in directory.iterdir():
+        if item.is_dir():
+            rmdir(item)
+        else:
+            item.unlink()
+
+    directory.rmdir()
+
+
+@dataclass
+class Q8SPythonEnv:
+    dependencies: List[str]
+
+
+@dataclass
+class Q8STarget:
+    python_env: Q8SPythonEnv
+
+
+@dataclass
+class Q8STargets:
+    cpu: Optional[Q8STarget]
+    gpu: Optional[Q8STarget]
+
+    def keys(self):
+        return self.__dataclass_fields__.keys()
+
+
+@dataclass
+class Q8SDocker:
+    username: str
+
+
+@dataclass
+class Q8SProject:
+    name: str
+    python_env: Q8SPythonEnv
+    targets: Q8STargets
+    docker: Q8SDocker
+
+
+class Project:
+    name: str
+    _path: str
+    configuration: Q8SProject
+
+    def __init__(self, path: str = "."):
+        self.configuration = from_dict(data_class=Q8SProject, data=load(path=path))
+        self.name = self.configuration.name
+        self._path = path
+
+    def init_cache(self):
+        """
+        Initialize the cache directory
+        """
+        cachepath = join(self._path, ".q8s_cache")
+        Path(cachepath).mkdir(exist_ok=True)
+
+        for target in self.configuration.targets.keys():
+            Path(join(self._path, ".q8s_cache", target)).mkdir(exist_ok=True)
+
+            with open(join(cachepath, target, "requirements.txt"), "w") as f:
+                self._create_requirements_txt(target, f)
+
+            with open(join(cachepath, target, "Dockerfile"), "w") as f:
+                self._create_dockerfile(target, f)
+
+    def check_cache(self):
+        result = True
+
+        for target in self.configuration.targets.keys():
+            result = self._check_cache_file(target, "requirements.txt") and result
+
+        return result
+
+    def build_container(self, target: str, progress: Progress, push: bool = True):
+        """
+        Build the container image
+        """
+        targetpath = join(self._path, ".q8s_cache", target)
+
+        task = progress.add_task(
+            description=f"Building container for {target}...", total=None
+        )
+
+        result = system(f"docker build -t {self._image_name(target)} {targetpath}")
+
+        if result != 0:
+            progress.update(task, completed=False)
+            raise Exception("Failed to build the container")
+        else:
+            progress.update(
+                task,
+                description=f"Container {self._image_name(target)} built",
+                completed=True,
+            )
+
+        if push:
+            self.push_container(target, progress)
+
+        return self._image_name(target)
+
+    def push_container(self, target: str, progress: Progress):
+        """
+        Push the container image to the registry
+        """
+        task = progress.add_task(
+            description=f"Pushing container for {target}...", total=None
+        )
+
+        result = system(f"docker push {self._image_name(target)}")
+
+        if result != 0:
+            progress.update(task, completed=False)
+            raise Exception("Failed to push the container")
+        else:
+            progress.update(task, completed=True)
+
+    def update_images_cache(self, images: dict):
+        """
+        Update the images cache
+        """
+        with open(join(self._path, ".q8s_cache", "images"), "w") as f:
+            yaml.dump(images, f)
+
+    def clear_cache(self):
+        """
+        Clear the cache directory
+        """
+        cachepath = join(self._path, ".q8s_cache")
+        rmdir(cachepath)
+
+    def _docker_login(self) -> str:
+        return self.configuration.docker.username
+
+    def _image_name(self, target: str):
+        return f"{self._docker_login()}/q8s-{self.name.lower()}:{target}"
+
+    def _check_cache_file(self, target: str, file: str):
+        cachepath = join(self._path, ".q8s_cache", target, file)
+        if Path(cachepath).exists() is False:
+            print(f"Cache file {cachepath} does not exist")
+            return False
+
+        file = StringIO()
+        self._create_requirements_txt(target, file)
+
+        with open(cachepath, "r") as f:
+            if file.getvalue() != f.read():
+                print(f"Cache file {cachepath} is outdated")
+                return False
+
+        return True
+
+    def _get_targets(self):
+        return self.configuration.targets.__dataclass_fields__.keys()
+
+    def _create_requirements_txt(self, target: str, f):
+        print("# This file is autogenerated by q8sctl", file=f)
+        print("# Do not edit manually", file=f)
+
+        print("\n# Common dependencies:", file=f)
+
+        for dep in self.configuration.python_env.dependencies:
+            print(f"{dep}", file=f)
+
+        print("\n# Target specific dependencies:", file=f)
+
+        for dep in self._get_target(target=target).python_env.dependencies:
+            print(f"{dep}", file=f)
+
+    def _get_target(self, target: str) -> Q8STarget:
+        if hasattr(self.configuration.targets, target) is False:
+            raise Exception(f"Target {target} not found")
+
+        return getattr(self.configuration.targets, target)
+
+    def _create_dockerfile(self, target: str, f):
+        print("# This file is autogenerated by q8sctl", file=f)
+        print("# Do not edit manually", file=f)
+
+        base_images = {
+            "cpu": "python:3.12-slim",
+            "gpu": "vstirbu/q8s-cuda12:latest",
+        }
+        print(f"\nFROM {base_images[target]}", file=f)
+
+        print("WORKDIR /app", file=f)
+        print("COPY requirements.txt .", file=f)
+        print("RUN pip install -r requirements.txt", file=f)

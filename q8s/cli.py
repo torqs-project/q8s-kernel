@@ -1,17 +1,61 @@
 import os
 from pathlib import Path
+from time import sleep
 import typer
+from rich.progress import Progress, SpinnerColumn, TextColumn
 import sys
 from typing_extensions import Annotated
 from q8s.execution import K8sContext, Target
 from q8s.install import install_my_kernel_spec
+from q8s.project import Project
 
 app = typer.Typer()
 
 
 @app.command()
-def build(tag: str = None):
-    pass
+def build(
+    init: Annotated[bool, typer.Option(help="Initialize project")] = False,
+    target: Annotated[
+        Target, typer.Option(help="Execution target", case_sensitive=False)
+    ] = None,
+):
+    images = {
+        "cpu": None,
+        "gpu": None,
+    }
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        task = progress.add_task(description="Loading project...", total=None)
+
+        project = Project()
+
+        progress.update(task, completed=True)
+
+        if init:
+            progress.update(task, description="Initializing cache...")
+            project.init_cache()
+
+        if target:
+            image_name = project.build_container(
+                target=target.value, progress=progress, push=True
+            )
+
+            images[target.value] = image_name
+        else:
+            for build in project.configuration.targets.keys():
+                image_name = project.build_container(
+                    build, progress=progress, push=True
+                )
+
+                images[build] = image_name
+
+    print(f"Project {project.name} ready")
+    print(f"Images: {images}")
+    project.update_images_cache(images)
 
 
 @app.command()
