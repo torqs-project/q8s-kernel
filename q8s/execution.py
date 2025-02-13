@@ -174,6 +174,7 @@ class K8sContext:
 
         self.__create_config_map_object(code, job)
         self.__create_environment_secret()
+
         if self.registry_pat:
             self.__create_registry_credentials_secret()
 
