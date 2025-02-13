@@ -94,8 +94,8 @@ class K8sContext:
             name=self.name,
             image=self.container_image,
             env=env,
-            command=["python3"],
-            args=["./app/main.py"],
+            command=["python"],
+            args=["/app/main.py"],
             resources=(
                 client.V1ResourceRequirements(
                     limits=(

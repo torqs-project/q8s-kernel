@@ -67,7 +67,7 @@ def execute(
     kubeconfig: Annotated[
         Path, typer.Option(help="Kubernetes configuration", envvar="KUBECONFIG")
     ] = None,
-    image: Annotated[str, typer.Option(help="Docker image")] = "vstirbu/benchmark-deps",
+    image: Annotated[str, typer.Option(help="Docker image")] = None,
     registry_pat: Annotated[
         str,
         typer.Option(
@@ -76,6 +76,10 @@ def execute(
         ),
     ] = None,
 ):
+    if image is None:
+        project = Project()
+        image = project.cached_images(target.value)
+
     if kubeconfig.exists() is False:
         typer.echo(f"kubeconfig file {kubeconfig} does not exist")
         raise typer.Exit(code=1)
