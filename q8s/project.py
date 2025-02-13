@@ -8,6 +8,8 @@ from rich.progress import Progress
 import yaml
 from dacite import from_dict
 
+from q8s.constants import WORKSPACE
+
 
 def load(path: str):
     """
@@ -66,23 +68,23 @@ class Q8SProject:
 
 class Project:
     name: str
-    _path: str
+    __path: str
     configuration: Q8SProject
 
     def __init__(self, path: str = "."):
         self.configuration = from_dict(data_class=Q8SProject, data=load(path=path))
         self.name = self.configuration.name
-        self._path = path
+        self.__path = path
 
     def init_cache(self):
         """
         Initialize the cache directory
         """
-        cachepath = join(self._path, ".q8s_cache")
+        cachepath = join(self.__path, ".q8s_cache")
         Path(cachepath).mkdir(exist_ok=True)
 
         for target in self.configuration.targets.keys():
-            Path(join(self._path, ".q8s_cache", target)).mkdir(exist_ok=True)
+            Path(join(self.__path, ".q8s_cache", target)).mkdir(exist_ok=True)
 
             with open(join(cachepath, target, "requirements.txt"), "w") as f:
                 self.__create_requirements_txt(target, f)
@@ -102,7 +104,7 @@ class Project:
         """
         Get the cached images
         """
-        cachepath = join(self._path, ".q8s_cache", "images")
+        cachepath = join(self.__path, ".q8s_cache", "images")
 
         if Path(cachepath).exists() is False:
             raise Exception("Images cache not found, Build the images first")
@@ -114,7 +116,7 @@ class Project:
         """
         Build the container image
         """
-        targetpath = join(self._path, ".q8s_cache", target)
+        targetpath = join(self.__path, ".q8s_cache", target)
 
         task = progress.add_task(
             description=f"Building container for {target}...", total=None
@@ -157,14 +159,14 @@ class Project:
         """
         Update the images cache
         """
-        with open(join(self._path, ".q8s_cache", "images"), "w") as f:
+        with open(join(self.__path, ".q8s_cache", "images"), "w") as f:
             yaml.dump(images, f)
 
     def clear_cache(self):
         """
         Clear the cache directory
         """
-        cachepath = join(self._path, ".q8s_cache")
+        cachepath = join(self.__path, ".q8s_cache")
         rmdir(cachepath)
 
     def __docker_login(self) -> str:
@@ -174,7 +176,7 @@ class Project:
         return f"{self.__docker_login()}/q8s-{self.name.lower()}:{target}"
 
     def __check_cache_file(self, target: str, file: str):
-        cachepath = join(self._path, ".q8s_cache", target, file)
+        cachepath = join(self.__path, ".q8s_cache", target, file)
         if Path(cachepath).exists() is False:
             print(f"Cache file {cachepath} does not exist")
             return False
@@ -213,7 +215,7 @@ class Project:
         }
         print(f"\nFROM {base_images[target]}", file=f)
 
-        print("WORKDIR /app", file=f)
+        print(f"WORKDIR {WORKSPACE}", file=f)
         print("COPY requirements.txt .", file=f)
         print("RUN pip install -r requirements.txt", file=f)
 

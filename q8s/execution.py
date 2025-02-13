@@ -9,6 +9,8 @@ from time import sleep
 from dotenv import dotenv_values
 from kubernetes import client, config
 
+from q8s.constants import WORKSPACE
+
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_context] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
@@ -95,7 +97,7 @@ class K8sContext:
             image=self.container_image,
             env=env,
             command=["python"],
-            args=["/app/main.py"],
+            args=[f"{WORKSPACE}/main.py"],
             resources=(
                 client.V1ResourceRequirements(
                     limits=(
@@ -122,7 +124,7 @@ class K8sContext:
             ),
             volume_mounts=[
                 client.V1VolumeMount(
-                    name="app-volume", mount_path="/app", read_only=True
+                    name="app-volume", mount_path=WORKSPACE, read_only=True
                 )
             ],
         )
