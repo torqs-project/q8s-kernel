@@ -1,6 +1,8 @@
 from os import remove
 from os.path import exists, join
 import unittest
+from unittest.mock import Mock
+from rich.progress import Progress, SpinnerColumn
 
 from q8s.project import Project
 
@@ -58,3 +60,37 @@ class TestProject(unittest.TestCase):
         self.assertFalse(project.check_cache())
 
         project.clear_cache()
+
+    @unittest.mock.patch("os.system", return_value=0)
+    def test_build_container(self, mock_system: Mock):
+        project_path = "tests/fixtures/cache"
+        project = Project(project_path)
+
+        project.init_cache()
+
+        image_name = project.build_container(
+            target="cpu", progress=Progress(SpinnerColumn()), push=False
+        )
+
+        assert mock_system.called
+        assert (
+            mock_system.call_args[0][0]
+            == f"docker build -t {image_name} {join(project_path, '.q8s_cache/cpu')}"
+        )
+        self.assertEqual(image_name, "vstirbu/q8s-example:cpu")
+
+    @unittest.mock.patch("os.system", return_value=0)
+    def test_push_container(self, mock_system: Mock):
+        project_path = "tests/fixtures/cache"
+        project = Project(project_path)
+
+        project.init_cache()
+
+        image_name = project.build_container(
+            target="cpu", progress=Progress(SpinnerColumn()), push=False
+        )
+
+        project.push_container(target="cpu", progress=Progress(SpinnerColumn()))
+
+        assert mock_system.called
+        assert mock_system.call_args[0][0] == f"docker push {image_name}"
