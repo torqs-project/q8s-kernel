@@ -6,8 +6,10 @@ import os
 import random
 import string
 from time import sleep
+from typing import Dict
 from dotenv import dotenv_values
 from kubernetes import client, config
+import pluggy
 
 from q8s.constants import WORKSPACE
 
@@ -33,16 +35,125 @@ def load_env():
     return env
 
 
+hookspec = pluggy.HookspecMarker("q8s")
+hookimpl = pluggy.HookimplMarker("q8s")
+
+
+class JobTemplateSpec:
+
+    @hookspec
+    def makejob(
+        self,
+        name: str,
+        registry_pat: str | None,
+        registry_credentials_secret_name: str,
+        container_image: str,
+        env: Dict[
+            str,
+            str | None,
+        ],
+        target: Target,
+    ) -> client.V1PodTemplateSpec:
+        return None
+
+
+class CPUandGPUJobTemplateSpec:
+
+    @hookimpl
+    def makejob(
+        self,
+        name: str,
+        registry_pat: str | None,
+        registry_credentials_secret_name: str,
+        container_image: str,
+        env: Dict[
+            str,
+            str | None,
+        ],
+        target: Target,
+    ) -> client.V1PodTemplateSpec:
+
+        if target != Target.cpu and target != Target.gpu:
+            return None
+
+        container = client.V1Container(
+            name="quantum-routine",
+            image=container_image,
+            env=env,
+            command=["python"],
+            args=[f"{WORKSPACE}/main.py"],
+            resources=(
+                client.V1ResourceRequirements(
+                    limits=(
+                        {
+                            "cpu": "2",
+                            "ephemeral-storage": "50Gi",
+                            "memory": MEMORY,
+                            "nvidia.com/gpu": "1",
+                            # "qubernetes.dev/qpu": "1",
+                        }
+                    ),
+                    requests=(
+                        {
+                            "cpu": "2",
+                            "ephemeral-storage": "0",
+                            "memory": MEMORY,
+                            "nvidia.com/gpu": "1",
+                            # "qubernetes.dev/qpu": "1",
+                        }
+                    ),
+                )
+                if target == Target.gpu
+                else None
+            ),
+            volume_mounts=[
+                client.V1VolumeMount(
+                    name="app-volume", mount_path=WORKSPACE, read_only=True
+                )
+            ],
+        )
+
+        template = client.V1PodTemplateSpec(
+            metadata=client.V1ObjectMeta(labels={"app": name}),
+            spec=client.V1PodSpec(
+                containers=[container],
+                image_pull_secrets=(
+                    [
+                        client.V1LocalObjectReference(
+                            name=registry_credentials_secret_name
+                        )
+                    ]
+                    if registry_pat
+                    else []
+                ),
+                runtime_class_name="nvidia" if target == Target.gpu else None,
+                restart_policy="Never",
+                volumes=[
+                    client.V1Volume(
+                        name="app-volume",
+                        config_map=client.V1ConfigMapVolumeSource(name=name),
+                    )
+                ],
+            ),
+        )
+
+        return template
+
+
 class K8sContext:
-    container_image: str = "vsirbu/benchmark-deps"
+    container_image: str | None = None
     registry_pat: str | None = None
     jupyter_logger: None
     target: Target = Target.gpu
+    jm: pluggy.PluginManager = pluggy.PluginManager("q8s")
 
     def __init__(self, kubeconfig: str, logger=None):
         """
         Initialize the Kubernetes context.
         """
+        self.jm.add_hookspecs(JobTemplateSpec)
+        self.jm.register(CPUandGPUJobTemplateSpec())
+
         config.load_kube_config(kubeconfig)
         logging.info("Kubeconfig loaded")
 
@@ -91,67 +202,14 @@ class K8sContext:
         """
         env = self.__prepare_environment()
 
-        # Configureate Pod template container
-        container = client.V1Container(
-            name=self.name,
-            image=self.container_image,
+        [template] = self.jm.hook.makejob(
+            code=code,
             env=env,
-            command=["python"],
-            args=[f"{WORKSPACE}/main.py"],
-            resources=(
-                client.V1ResourceRequirements(
-                    limits=(
-                        {
-                            "cpu": "2",
-                            "ephemeral-storage": "50Gi",
-                            "memory": MEMORY,
-                            "nvidia.com/gpu": "1",
-                            # "qubernetes.dev/qpu": "1",
-                        }
-                    ),
-                    requests=(
-                        {
-                            "cpu": "2",
-                            "ephemeral-storage": "0",
-                            "memory": MEMORY,
-                            "nvidia.com/gpu": "1",
-                            # "qubernetes.dev/qpu": "1",
-                        }
-                    ),
-                )
-                if self.target == Target.gpu
-                else None
-            ),
-            volume_mounts=[
-                client.V1VolumeMount(
-                    name="app-volume", mount_path=WORKSPACE, read_only=True
-                )
-            ],
-        )
-
-        # Create and configurate a spec section
-        template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"app": self.name}),
-            spec=client.V1PodSpec(
-                containers=[container],
-                image_pull_secrets=(
-                    [
-                        client.V1LocalObjectReference(
-                            name=self.__registry_credentials_secret_name()
-                        )
-                    ]
-                    if self.registry_pat
-                    else []
-                ),
-                runtime_class_name="nvidia" if self.target == Target.gpu else None,
-                restart_policy="Never",
-                volumes=[
-                    client.V1Volume(
-                        name="app-volume",
-                        config_map=client.V1ConfigMapVolumeSource(name=self.name),
-                    )
-                ],
-            ),
+            container_image=self.container_image,
+            target=self.target,
+            registry_credentials_secret_name=self.__registry_credentials_secret_name(),
+            name=self.name,
+            registry_pat=self.registry_pat,
         )
 
         # Create the specification of deployment
