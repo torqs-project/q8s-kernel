@@ -15,6 +15,7 @@ from q8s.plugins.job_template_spec import (
     CPUandGPUJobTemplatePlugin,
     JobTemplatePluginSpec,
 )
+from q8s.utils import extract_non_none_value
 
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_context] %(message)s"
@@ -94,14 +95,16 @@ class K8sContext:
         """
         env = self.__prepare_environment()
 
-        [template] = self.jm.hook.makejob(
-            code=code,
-            env=env,
-            container_image=self.container_image,
-            target=self.target,
-            registry_credentials_secret_name=self.__registry_credentials_secret_name(),
-            name=self.name,
-            registry_pat=self.registry_pat,
+        template = extract_non_none_value(
+            self.jm.hook.makejob(
+                code=code,
+                env=env,
+                container_image=self.container_image,
+                target=self.target,
+                registry_credentials_secret_name=self.__registry_credentials_secret_name(),
+                name=self.name,
+                registry_pat=self.registry_pat,
+            )
         )
 
         # Create the specification of deployment
