@@ -5,7 +5,8 @@ import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import sys
 from typing_extensions import Annotated
-from q8s.execution import K8sContext, Target
+from q8s.execution import K8sContext
+from q8s.enums import Target
 from q8s.install import install_my_kernel_spec
 from q8s.project import Project
 

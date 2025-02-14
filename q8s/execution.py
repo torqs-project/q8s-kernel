@@ -1,29 +1,26 @@
 import base64
-from enum import Enum
 from json import JSONEncoder, loads
 import logging
 import os
 import random
 import string
 from time import sleep
-from typing import Dict
 from dotenv import dotenv_values
 from kubernetes import client, config
 import pluggy
 
 from q8s.constants import WORKSPACE
+from q8s.enums import Target
+from q8s.plugins.job_template_spec import (
+    CPUandGPUJobTemplatePlugin,
+    JobTemplatePluginSpec,
+)
 
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_context] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 MEMORY = os.environ.get("MEMORY", "32Gi")
-
-
-class Target(str, Enum):
-    cpu = "cpu"
-    gpu = "gpu"
-    qpu = "qpu"
 
 
 def load_env():
@@ -33,111 +30,6 @@ def load_env():
     #     logging.info(f"{key} = {env[key]}")
 
     return env
-
-
-hookspec = pluggy.HookspecMarker("q8s")
-hookimpl = pluggy.HookimplMarker("q8s")
-
-
-class JobTemplateSpec:
-
-    @hookspec
-    def makejob(
-        self,
-        name: str,
-        registry_pat: str | None,
-        registry_credentials_secret_name: str,
-        container_image: str,
-        env: Dict[
-            str,
-            str | None,
-        ],
-        target: Target,
-    ) -> client.V1PodTemplateSpec:
-        return None
-
-
-class CPUandGPUJobTemplateSpec:
-
-    @hookimpl
-    def makejob(
-        self,
-        name: str,
-        registry_pat: str | None,
-        registry_credentials_secret_name: str,
-        container_image: str,
-        env: Dict[
-            str,
-            str | None,
-        ],
-        target: Target,
-    ) -> client.V1PodTemplateSpec:
-
-        if target != Target.cpu and target != Target.gpu:
-            return None
-
-        container = client.V1Container(
-            name="quantum-routine",
-            image=container_image,
-            env=env,
-            command=["python"],
-            args=[f"{WORKSPACE}/main.py"],
-            resources=(
-                client.V1ResourceRequirements(
-                    limits=(
-                        {
-                            "cpu": "2",
-                            "ephemeral-storage": "50Gi",
-                            "memory": MEMORY,
-                            "nvidia.com/gpu": "1",
-                            # "qubernetes.dev/qpu": "1",
-                        }
-                    ),
-                    requests=(
-                        {
-                            "cpu": "2",
-                            "ephemeral-storage": "0",
-                            "memory": MEMORY,
-                            "nvidia.com/gpu": "1",
-                            # "qubernetes.dev/qpu": "1",
-                        }
-                    ),
-                )
-                if target == Target.gpu
-                else None
-            ),
-            volume_mounts=[
-                client.V1VolumeMount(
-                    name="app-volume", mount_path=WORKSPACE, read_only=True
-                )
-            ],
-        )
-
-        template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"app": name}),
-            spec=client.V1PodSpec(
-                containers=[container],
-                image_pull_secrets=(
-                    [
-                        client.V1LocalObjectReference(
-                            name=registry_credentials_secret_name
-                        )
-                    ]
-                    if registry_pat
-                    else []
-                ),
-                runtime_class_name="nvidia" if target == Target.gpu else None,
-                restart_policy="Never",
-                volumes=[
-                    client.V1Volume(
-                        name="app-volume",
-                        config_map=client.V1ConfigMapVolumeSource(name=name),
-                    )
-                ],
-            ),
-        )
-
-        return template
 
 
 class K8sContext:
@@ -151,8 +43,8 @@ class K8sContext:
         """
         Initialize the Kubernetes context.
         """
-        self.jm.add_hookspecs(JobTemplateSpec)
-        self.jm.register(CPUandGPUJobTemplateSpec())
+        self.jm.add_hookspecs(JobTemplatePluginSpec)
+        self.jm.register(CPUandGPUJobTemplatePlugin())
 
         config.load_kube_config(kubeconfig)
         logging.info("Kubeconfig loaded")
