@@ -30,7 +30,7 @@ class JobTemplatePluginSpec:
         return None
 
 
-class CPUandGPUJobTemplatePlugin:
+class CPUJobTemplatePlugin:
 
     @hookimpl
     def makejob(
@@ -46,7 +46,65 @@ class CPUandGPUJobTemplatePlugin:
         target: Target,
     ) -> client.V1PodTemplateSpec:
 
-        if target != Target.cpu and target != Target.gpu:
+        if target != Target.cpu:
+            return None
+
+        container = client.V1Container(
+            name="quantum-routine",
+            image=container_image,
+            env=env,
+            command=["python"],
+            args=[f"{WORKSPACE}/main.py"],
+            volume_mounts=[
+                client.V1VolumeMount(
+                    name="app-volume", mount_path=WORKSPACE, read_only=True
+                )
+            ],
+        )
+
+        template = client.V1PodTemplateSpec(
+            metadata=client.V1ObjectMeta(labels={"app": name}),
+            spec=client.V1PodSpec(
+                containers=[container],
+                image_pull_secrets=(
+                    [
+                        client.V1LocalObjectReference(
+                            name=registry_credentials_secret_name
+                        )
+                    ]
+                    if registry_pat
+                    else []
+                ),
+                restart_policy="Never",
+                volumes=[
+                    client.V1Volume(
+                        name="app-volume",
+                        config_map=client.V1ConfigMapVolumeSource(name=name),
+                    )
+                ],
+            ),
+        )
+
+        return template
+
+
+class CUDAJobTemplatePlugin:
+
+    @hookimpl
+    def makejob(
+        self,
+        name: str,
+        registry_pat: str | None,
+        registry_credentials_secret_name: str,
+        container_image: str,
+        env: Dict[
+            str,
+            str | None,
+        ],
+        target: Target,
+    ) -> client.V1PodTemplateSpec:
+
+        if target != Target.gpu:
             return None
 
         container = client.V1Container(
@@ -76,8 +134,6 @@ class CPUandGPUJobTemplatePlugin:
                         }
                     ),
                 )
-                if target == Target.gpu
-                else None
             ),
             volume_mounts=[
                 client.V1VolumeMount(
@@ -99,7 +155,7 @@ class CPUandGPUJobTemplatePlugin:
                     if registry_pat
                     else []
                 ),
-                runtime_class_name="nvidia" if target == Target.gpu else None,
+                runtime_class_name="nvidia",
                 restart_policy="Never",
                 volumes=[
                     client.V1Volume(

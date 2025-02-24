@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from kubernetes import client
-from q8s.plugins.job_template_spec import CPUandGPUJobTemplatePlugin
+from q8s.plugins.job_template_spec import CPUJobTemplatePlugin, CUDAJobTemplatePlugin
 from q8s.enums import Target
 
 
@@ -28,7 +28,7 @@ class TestCPUandGPUJobTemplatePlugin(unittest.TestCase):
         mock_v1_pod_template_spec,
         mock_v1_container,
     ):
-        plugin = CPUandGPUJobTemplatePlugin()
+        plugin = CPUJobTemplatePlugin()
         name = "test-job"
         registry_pat = None
         registry_credentials_secret_name = "test-secret"
@@ -75,7 +75,7 @@ class TestCPUandGPUJobTemplatePlugin(unittest.TestCase):
         mock_v1_pod_template_spec,
         mock_v1_container,
     ):
-        plugin = CPUandGPUJobTemplatePlugin()
+        plugin = CUDAJobTemplatePlugin()
         name = "test-job"
         registry_pat = "test-pat"
         registry_credentials_secret_name = "test-secret"
@@ -104,7 +104,7 @@ class TestCPUandGPUJobTemplatePlugin(unittest.TestCase):
         mock_v1_resource_requirements.assert_called_once()
 
     def test_makejob_invalid_target(self):
-        plugin = CPUandGPUJobTemplatePlugin()
+        plugin = CPUJobTemplatePlugin()
         name = "test-job"
         registry_pat = None
         registry_credentials_secret_name = "test-secret"

@@ -12,7 +12,8 @@ import pluggy
 from q8s.constants import WORKSPACE
 from q8s.enums import Target
 from q8s.plugins.job_template_spec import (
-    CPUandGPUJobTemplatePlugin,
+    CPUJobTemplatePlugin,
+    CUDAJobTemplatePlugin,
     JobTemplatePluginSpec,
 )
 from q8s.utils import extract_non_none_value
@@ -45,7 +46,8 @@ class K8sContext:
         Initialize the Kubernetes context.
         """
         self.jm.add_hookspecs(JobTemplatePluginSpec)
-        self.jm.register(CPUandGPUJobTemplatePlugin())
+        self.jm.register(CPUJobTemplatePlugin())
+        self.jm.register(CUDAJobTemplatePlugin())
 
         config.load_kube_config(kubeconfig)
         logging.info("Kubeconfig loaded")
