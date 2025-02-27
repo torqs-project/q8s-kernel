@@ -11,21 +11,6 @@ class CUDAJobTemplatePlugin:
     """
 
     @hookimpl
-    def prepare(
-        self,
-        target: Target,
-        name: str,
-        namespace: str,
-        env: Dict[
-            str,
-            str | None,
-        ],
-    ) -> None:
-        if target == Target.gpu:
-            print("Preparing for GPU job...")
-        pass
-
-    @hookimpl
     def makejob(
         self,
         name: str,

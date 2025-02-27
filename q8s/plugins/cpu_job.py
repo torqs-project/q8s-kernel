@@ -8,21 +8,6 @@ from typing import Dict
 class CPUJobTemplatePlugin:
 
     @hookimpl
-    def prepare(
-        self,
-        target: Target,
-        name: str,
-        namespace: str,
-        env: Dict[
-            str,
-            str | None,
-        ],
-    ) -> None:
-        if target == Target.cpu:
-            print("Preparing for CPU job...")
-        pass
-
-    @hookimpl
     def makejob(
         self,
         name: str,
