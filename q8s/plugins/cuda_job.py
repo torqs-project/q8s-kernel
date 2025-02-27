@@ -1,8 +1,11 @@
+import os
 from typing import Dict
 from kubernetes import client
 from q8s.constants import WORKSPACE
 from q8s.enums import Target
 from q8s.plugins.job_template_spec import hookimpl
+
+MEMORY = os.environ.get("MEMORY", "32Gi")
 
 
 class CUDAJobTemplatePlugin:

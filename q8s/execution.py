@@ -20,8 +20,6 @@ from q8s.utils import extract_non_none_value
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_context] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
-MEMORY = os.environ.get("MEMORY", "32Gi")
-
 
 def load_env():
     env = dotenv_values(".env.q8s")

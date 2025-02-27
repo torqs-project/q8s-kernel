@@ -6,8 +6,6 @@ from kubernetes import client
 from q8s.constants import WORKSPACE
 from q8s.enums import Target
 
-MEMORY = os.environ.get("MEMORY", "32Gi")
-
 hookspec = pluggy.HookspecMarker("q8s")
 hookimpl = pluggy.HookimplMarker("q8s")
 
