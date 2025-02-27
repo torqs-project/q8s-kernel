@@ -1,5 +1,4 @@
 import base64
-from enum import Enum
 from json import JSONEncoder, loads
 import logging
 import os
@@ -8,20 +7,18 @@ import string
 from time import sleep
 from dotenv import dotenv_values
 from kubernetes import client, config
+import pluggy
 
 from q8s.constants import WORKSPACE
+from q8s.enums import Target
+from q8s.plugins.job_template_spec import JobTemplatePluginSpec
+from q8s.plugins.cpu_job import CPUJobTemplatePlugin
+from q8s.plugins.cuda_job import CUDAJobTemplatePlugin
+from q8s.utils import extract_non_none_value
 
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_context] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
-
-MEMORY = os.environ.get("MEMORY", "32Gi")
-
-
-class Target(str, Enum):
-    cpu = "cpu"
-    gpu = "gpu"
-    qpu = "qpu"
 
 
 def load_env():
@@ -34,15 +31,20 @@ def load_env():
 
 
 class K8sContext:
-    container_image: str = "vsirbu/benchmark-deps"
+    container_image: str | None = None
     registry_pat: str | None = None
     jupyter_logger: None
     target: Target = Target.gpu
+    jm: pluggy.PluginManager = pluggy.PluginManager("q8s")
 
     def __init__(self, kubeconfig: str, logger=None):
         """
         Initialize the Kubernetes context.
         """
+        self.jm.add_hookspecs(JobTemplatePluginSpec)
+        self.jm.register(CPUJobTemplatePlugin())
+        self.jm.register(CUDAJobTemplatePlugin())
+
         config.load_kube_config(kubeconfig)
         logging.info("Kubeconfig loaded")
 
@@ -91,67 +93,20 @@ class K8sContext:
         """
         env = self.__prepare_environment()
 
-        # Configureate Pod template container
-        container = client.V1Container(
-            name=self.name,
-            image=self.container_image,
-            env=env,
-            command=["python"],
-            args=[f"{WORKSPACE}/main.py"],
-            resources=(
-                client.V1ResourceRequirements(
-                    limits=(
-                        {
-                            "cpu": "2",
-                            "ephemeral-storage": "50Gi",
-                            "memory": MEMORY,
-                            "nvidia.com/gpu": "1",
-                            # "qubernetes.dev/qpu": "1",
-                        }
-                    ),
-                    requests=(
-                        {
-                            "cpu": "2",
-                            "ephemeral-storage": "0",
-                            "memory": MEMORY,
-                            "nvidia.com/gpu": "1",
-                            # "qubernetes.dev/qpu": "1",
-                        }
-                    ),
-                )
-                if self.target == Target.gpu
-                else None
-            ),
-            volume_mounts=[
-                client.V1VolumeMount(
-                    name="app-volume", mount_path=WORKSPACE, read_only=True
-                )
-            ],
+        self.jm.hook.prepare(
+            target=self.target, name=self.name, namespace=self.namespace, env=self.__env
         )
 
-        # Create and configurate a spec section
-        template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels={"app": self.name}),
-            spec=client.V1PodSpec(
-                containers=[container],
-                image_pull_secrets=(
-                    [
-                        client.V1LocalObjectReference(
-                            name=self.__registry_credentials_secret_name()
-                        )
-                    ]
-                    if self.registry_pat
-                    else []
-                ),
-                runtime_class_name="nvidia" if self.target == Target.gpu else None,
-                restart_policy="Never",
-                volumes=[
-                    client.V1Volume(
-                        name="app-volume",
-                        config_map=client.V1ConfigMapVolumeSource(name=self.name),
-                    )
-                ],
-            ),
+        template = extract_non_none_value(
+            self.jm.hook.makejob(
+                code=code,
+                env=env,
+                container_image=self.container_image,
+                target=self.target,
+                registry_credentials_secret_name=self.__registry_credentials_secret_name(),
+                name=self.name,
+                registry_pat=self.registry_pat,
+            )
         )
 
         # Create the specification of deployment
@@ -195,7 +150,7 @@ class K8sContext:
                 name=self.name,
                 owner_references=[
                     client.V1OwnerReference(
-                        api_version="v1",
+                        api_version="batch/v1",
                         kind="Job",
                         name=job.metadata.name,
                         uid=job.metadata.uid,
@@ -308,6 +263,8 @@ class K8sContext:
             self.namespace,
             body=client.V1DeleteOptions(propagation_policy="Foreground"),
         )
+
+        self.jm.hook.cleanup(name=self.name, namespace=self.namespace)
 
         api_response = self.batch_api_instance.delete_namespaced_job(
             self.name,
