@@ -11,11 +11,9 @@ import pluggy
 
 from q8s.constants import WORKSPACE
 from q8s.enums import Target
-from q8s.plugins.job_template_spec import (
-    CPUJobTemplatePlugin,
-    CUDAJobTemplatePlugin,
-    JobTemplatePluginSpec,
-)
+from q8s.plugins.job_template_spec import JobTemplatePluginSpec
+from q8s.plugins.cpu_job import CPUJobTemplatePlugin
+from q8s.plugins.cuda_job import CUDAJobTemplatePlugin
 from q8s.utils import extract_non_none_value
 
 
@@ -97,6 +95,10 @@ class K8sContext:
         """
         env = self.__prepare_environment()
 
+        self.jm.hook.prepare(
+            target=self.target, name=self.name, namespace=self.namespace, env=self.__env
+        )
+
         template = extract_non_none_value(
             self.jm.hook.makejob(
                 code=code,
@@ -150,7 +152,7 @@ class K8sContext:
                 name=self.name,
                 owner_references=[
                     client.V1OwnerReference(
-                        api_version="v1",
+                        api_version="batch/v1",
                         kind="Job",
                         name=job.metadata.name,
                         uid=job.metadata.uid,
@@ -263,6 +265,8 @@ class K8sContext:
             self.namespace,
             body=client.V1DeleteOptions(propagation_policy="Foreground"),
         )
+
+        self.jm.hook.cleanup(name=self.name, namespace=self.namespace)
 
         api_response = self.batch_api_instance.delete_namespaced_job(
             self.name,
