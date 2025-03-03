@@ -36,6 +36,7 @@ class CUDAJobTemplatePlugin:
             env=env,
             command=["python"],
             args=[f"{WORKSPACE}/main.py"],
+            image_pull_policy="Always",
             resources=(
                 client.V1ResourceRequirements(
                     limits=(

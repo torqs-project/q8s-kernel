@@ -30,6 +30,7 @@ class CPUJobTemplatePlugin:
             env=env,
             command=["python"],
             args=[f"{WORKSPACE}/main.py"],
+            image_pull_policy="Always",
             volume_mounts=[
                 client.V1VolumeMount(
                     name="app-volume", mount_path=WORKSPACE, read_only=True

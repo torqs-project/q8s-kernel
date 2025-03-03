@@ -9,6 +9,7 @@ import yaml
 from dacite import from_dict
 
 from q8s.constants import WORKSPACE
+from q8s.enums import Target
 
 
 def load(path: str):
@@ -70,11 +71,14 @@ class Project:
     name: str
     __path: str
     configuration: Q8SProject
+    __images: dict
 
     def __init__(self, path: str = "."):
         self.configuration = from_dict(data_class=Q8SProject, data=load(path=path))
         self.name = self.configuration.name
         self.__path = path
+
+        self.load_images_cache()
 
     def init_cache(self):
         """
@@ -99,6 +103,15 @@ class Project:
             result = self.__check_cache_file(target, "requirements.txt") and result
 
         return result
+
+    def load_images_cache(self):
+        cachepath = join(self.__path, ".q8s_cache", "images")
+
+        if Path(cachepath).exists() is False:
+            self.__images = {}
+
+        with open(cachepath, "r") as f:
+            self.__images = yaml.safe_load(f)
 
     def cached_images(self, target: str):
         """
@@ -137,7 +150,7 @@ class Project:
         if push:
             self.push_container(target, progress)
 
-        return self.__image_name(target)
+        self.__images[target] = self.__image_name(target)
 
     def push_container(self, target: str, progress: Progress):
         """
@@ -155,12 +168,12 @@ class Project:
         else:
             progress.update(task, completed=True)
 
-    def update_images_cache(self, images: dict):
+    def update_images_cache(self):
         """
         Update the images cache
         """
         with open(join(self.__path, ".q8s_cache", "images"), "w") as f:
-            yaml.dump(images, f)
+            yaml.dump(self.__images, f)
 
     def clear_cache(self):
         """
