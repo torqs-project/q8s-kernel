@@ -20,10 +20,6 @@ def build(
         Target, typer.Option(help="Execution target", case_sensitive=False)
     ] = None,
 ):
-    images = {
-        "cpu": None,
-        "gpu": None,
-    }
 
     with Progress(
         SpinnerColumn(),
@@ -41,22 +37,14 @@ def build(
             project.init_cache()
 
         if target:
-            image_name = project.build_container(
-                target=target.value, progress=progress, push=True
-            )
+            project.build_container(target=target.value, progress=progress, push=True)
 
-            images[target.value] = image_name
         else:
             for build in project.configuration.targets.keys():
-                image_name = project.build_container(
-                    build, progress=progress, push=True
-                )
-
-                images[build] = image_name
+                project.build_container(build, progress=progress, push=True)
 
     print(f"Project {project.name} ready")
-    print(f"Images: {images}")
-    project.update_images_cache(images)
+    project.update_images_cache()
 
 
 @app.command()
