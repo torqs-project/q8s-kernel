@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from io import StringIO
+from subprocess import Popen, PIPE
 from os.path import join
-import os
 from typing import List, Optional
 from rich.progress import Progress
 import yaml
@@ -132,20 +133,34 @@ class Project:
         targetpath = join(self.__path, ".q8s_cache", target)
 
         task = progress.add_task(
-            description=f"Building container for {target}...", total=None
+            description=f"[cyan]Building container for {target}...", total=1
         )
 
-        result = os.system(f"docker build -t {self.__image_name(target)} {targetpath}")
+        # start the docker build command in subprocess and capture the output
+        build_process = Popen(
+            [
+                "docker",
+                "build",
+                "-t",
+                self.__image_name(target),
+                targetpath,
+            ],
+            stdout=PIPE,
+            stderr=PIPE,
+        )
 
-        if result != 0:
-            progress.update(task, completed=False)
+        output = build_process.stdout.read().decode("utf-8")
+
+        build_process.wait()
+
+        print(output)
+
+        if build_process.returncode != 0:
+            progress.advance(task)
             raise Exception("Failed to build the container")
         else:
-            progress.update(
-                task,
-                description=f"Container {self.__image_name(target)} built",
-                completed=True,
-            )
+            progress.console.print(f"Container {self.__image_name(target)} built")
+            progress.advance(task, 1)
 
         if push:
             self.push_container(target, progress)
@@ -157,16 +172,22 @@ class Project:
         Push the container image to the registry
         """
         task = progress.add_task(
-            description=f"Pushing container for {target}...", total=None
+            description=f"Pushing container for {target}...", total=1
         )
 
-        result = os.system(f"docker push {self.__image_name(target)}")
+        push_process = Popen(
+            ["docker", "push", self.__image_name(target)],
+            stdout=PIPE,
+            stderr=PIPE,
+        )
 
-        if result != 0:
-            progress.update(task, completed=False)
+        push_process.wait()
+
+        if push_process.returncode != 0:
+            progress.advance(task)
             raise Exception("Failed to push the container")
         else:
-            progress.update(task, completed=True)
+            progress.advance(task)
 
     def update_images_cache(self):
         """
@@ -227,6 +248,14 @@ class Project:
             "gpu": "vstirbu/q8s-cuda12:latest",
         }
         print(f"\nFROM {base_images[target]}", file=f)
+        print("", file=f)
+
+        print(
+            f"LABEL org.opencontainers.image.created={datetime.now().isoformat()}",
+            file=f,
+        )
+        print(f"LABEL org.opencontainers.image.title={self.name}", file=f)
+        print("", file=f)
 
         print(f"WORKDIR {WORKSPACE}", file=f)
         print("COPY requirements.txt .", file=f)

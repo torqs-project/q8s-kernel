@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from time import sleep
 import typer
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 import sys
 from typing_extensions import Annotated
 from q8s.execution import K8sContext
@@ -19,29 +19,37 @@ def build(
     target: Annotated[
         Target, typer.Option(help="Execution target", case_sensitive=False)
     ] = None,
+    dry_run: Annotated[
+        bool, typer.Option(help="Dry run does not push images to the registry")
+    ] = False,
 ):
 
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        transient=True,
+        TimeElapsedColumn(),
+        expand=True,
     ) as progress:
-        task = progress.add_task(description="Loading project...", total=None)
+        task = progress.add_task(description="[cyan]Loading project...", total=1)
 
         project = Project()
 
-        progress.update(task, completed=True)
+        progress.advance(task)
 
         if init:
-            progress.update(task, description="Initializing cache...")
+            task = progress.add_task(description="[cyan]Initializing cache...", total=1)
+
             project.init_cache()
+            progress.advance(task)
 
         if target:
-            project.build_container(target=target.value, progress=progress, push=True)
+            project.build_container(
+                target=target.value, progress=progress, push=(not dry_run)
+            )
 
         else:
             for build in project.configuration.targets.keys():
-                project.build_container(build, progress=progress, push=True)
+                project.build_container(build, progress=progress, push=(not dry_run))
 
     print(f"Project {project.name} ready")
     project.update_images_cache()
@@ -81,18 +89,24 @@ def execute(
 
     # config.load_kube_config(kubeconfig)
 
-    k8s_context = K8sContext(kubeconfig)
-    k8s_context.set_target(target)
-    k8s_context.set_container_image(image)
-    k8s_context.set_registry_pat(registry_pat)
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        expand=True,
+    ) as progress:
+        k8s_context = K8sContext(kubeconfig, progress=progress)
+        k8s_context.set_target(target)
+        k8s_context.set_container_image(image)
+        k8s_context.set_registry_pat(registry_pat)
 
-    with open(file, "r") as f:
-        code = f.read()
-        # output, stream_name = execute_k8s(code, None, image, registry_pat)
-        output, stream_name = k8s_context.execute(code)
+        with open(file, "r") as f:
+            code = f.read()
+            # output, stream_name = execute_k8s(code, None, image, registry_pat)
+            output, stream_name = k8s_context.execute(code)
 
-        print(f"output:\n{output}")
-        print(f"output stream: {stream_name}")
+            print(f"output:\n{output}")
+            print(f"output stream: {stream_name}")
 
 
 @app.command()

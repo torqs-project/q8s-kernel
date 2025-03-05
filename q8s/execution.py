@@ -8,6 +8,7 @@ from time import sleep
 from dotenv import dotenv_values
 from kubernetes import client, config
 import pluggy
+from rich.progress import Progress
 
 from q8s.constants import WORKSPACE
 from q8s.enums import Target
@@ -17,15 +18,8 @@ from q8s.plugins.cuda_job import CUDAJobTemplatePlugin
 from q8s.utils import extract_non_none_value
 
 
-FORMAT = "[%(levelname)s %(asctime)-15s q8s_context] %(message)s"
-logging.basicConfig(level=logging.INFO, format=FORMAT)
-
-
 def load_env():
     env = dotenv_values(".env.q8s")
-
-    # for key in env.keys():
-    #     logging.info(f"{key} = {env[key]}")
 
     return env
 
@@ -36,17 +30,25 @@ class K8sContext:
     jupyter_logger: None
     target: Target = Target.gpu
     jm: pluggy.PluginManager = pluggy.PluginManager("q8s")
+    __progress: Progress | None
 
-    def __init__(self, kubeconfig: str, logger=None):
+    def __init__(self, kubeconfig: str, logger=None, progress: Progress = None):
         """
         Initialize the Kubernetes context.
         """
+        self.__progress = progress
+
         self.jm.add_hookspecs(JobTemplatePluginSpec)
         self.jm.register(CPUJobTemplatePlugin())
         self.jm.register(CUDAJobTemplatePlugin())
 
+        task_config = self.__progress.add_task(
+            "[cyan]Loading configuration...", total=1
+        )
+
         config.load_kube_config(kubeconfig)
-        logging.info("Kubeconfig loaded")
+        self.__progress.console.print("Cluster configuration loaded")
+        self.__progress.update(task_config, completed=True)
 
         _, active_context = config.list_kube_config_contexts(config_file=kubeconfig)
 
@@ -54,7 +56,7 @@ class K8sContext:
             self.namespace = active_context["context"]["namespace"]
         except KeyError:
             self.namespace = "default"
-        logging.info("Active namespace: %s" % self.namespace)
+        self.__progress.console.print(f"Active namespace: {self.namespace}")
 
         self.core_api_instance = client.CoreV1Api()
         self.batch_api_instance = client.BatchV1Api()
@@ -91,6 +93,7 @@ class K8sContext:
         """
         Create a job object with the given code.
         """
+        prepare_task = self.__progress.add_task("[cyan]Prepare job...", total=1)
         env = self.__prepare_environment()
 
         self.jm.hook.prepare(
@@ -127,14 +130,17 @@ class K8sContext:
         job = self.batch_api_instance.create_namespaced_job(
             body=job_spec, namespace=self.namespace
         )
-        logging.info("Job created")
+        self.__progress.console.print("Job created")
 
         self.__create_config_map_object(code, job)
+        self.__progress.console.print("Application code created")
         self.__create_environment_secret()
+        self.__progress.console.print("Environment variables created")
 
         if self.registry_pat:
             self.__create_registry_credentials_secret()
 
+        self.__progress.advance(prepare_task, 1)
         return job
 
     def __create_config_map_object(self, code: str, job: client.V1Job):
@@ -164,8 +170,6 @@ class K8sContext:
         self.core_api_instance.create_namespaced_config_map(
             namespace=self.namespace, body=configmap
         )
-
-        logging.info("ConfigMap created.")
 
     def __create_environment_secret(self):
         """
@@ -201,8 +205,6 @@ class K8sContext:
         self.core_api_instance.create_namespaced_secret(
             namespace=self.namespace, body=secret
         )
-
-        logging.info("Environment created.")
 
     def __create_registry_credentials_secret(self):
         """
@@ -243,26 +245,27 @@ class K8sContext:
             namespace=self.namespace, body=secret
         )
 
-        logging.info("Registry credentials created.")
-
     def __delete_job(self):
         """
         Delete the job and its associated resources.
         """
+        cleanup_task = self.__progress.add_task("[cyan]Cleaning up...", total=1)
+
         if self.registry_pat:
             self.core_api_instance.delete_namespaced_secret(
                 self.__registry_credentials_secret_name(), self.namespace
             )
-            logging.info("Registry credentials removed")
+            self.__progress.console.print("Registry credentials removed")
 
         self.core_api_instance.delete_namespaced_secret(self.name, self.namespace)
-        logging.info("Environment removed.")
+        self.__progress.console.print("Environment variables removed.")
 
         self.core_api_instance.delete_namespaced_config_map(
             self.name,
             self.namespace,
             body=client.V1DeleteOptions(propagation_policy="Foreground"),
         )
+        self.__progress.console.print("Application code removed.")
 
         self.jm.hook.cleanup(name=self.name, namespace=self.namespace)
 
@@ -276,13 +279,15 @@ class K8sContext:
         try:
             data = loads(api_response.data)
 
-            logging.info(
-                "Job removed. status='%s'"
-                % str(data["status"]["conditions"][0]["type"])
+            self.__progress.console.print(
+                f"Job removed. status='{data['status']['conditions'][0]['type']}'"
             )
         except:
-            logging.info(api_response.status)
-            logging.info("Job removed. status='%s'" % str(api_response.status))
+            self.__progress.console.print(
+                f"Job removed. status='{str(api_response.status)}'"
+            )
+        finally:
+            self.__progress.advance(cleanup_task, 1)
 
     def __get_job_logs(self, name="qiskit-aer-gpu"):
         """
@@ -304,8 +309,6 @@ class K8sContext:
 
         pod_name = pods.items[0].metadata.name
 
-        logging.info("Pods in the job='%s'" % str(pod_name))
-
         return pod_name
 
     def __complete_and_get_job_status(self):
@@ -314,6 +317,8 @@ class K8sContext:
         """
         pod_name = None
         job_completed = False
+
+        execute_task = self.__progress.add_task("[cyan]Executing job...", total=1)
 
         while not job_completed:
             api_response = self.batch_api_instance.read_namespaced_job_status(
@@ -346,11 +351,16 @@ class K8sContext:
                 except TypeError:
                     pass
                 finally:
-                    logging.info("Pod status='%s'" % str(s.status.phase))
+                    self.__progress.update(
+                        execute_task,
+                        description=f"[cyan]Executing job... [green]{s.status.phase}",
+                    )
                     if self.jupyter_logger is not None:
                         self.jupyter_logger(f"Pod status: {s.status.phase}")
 
             sleep(1)
+
+        self.__progress.advance(execute_task, 1)
 
         return self.__map_job_status_to_stream(api_response.status)
 
@@ -387,6 +397,7 @@ class K8sContext:
         """
         Execute the given code.
         """
+
         try:
             self.__create_job_object(code=code)
 
@@ -397,15 +408,16 @@ class K8sContext:
 
             job = self.__get_pods_in_job()
             logs = self.__get_job_logs(job)
+            self.__progress.console.print("Fetched job logs")
 
             return logs, stream
         except KeyboardInterrupt:
             return "Task interrupted by user", "stderr"
         except:
-            logging.info("An error occurred.")
             return "An error occurred.", "stderr"
         finally:
             self.__delete_job()
+            pass
 
     def abort(self):
         """
