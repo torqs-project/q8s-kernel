@@ -141,7 +141,9 @@ class Project:
             [
                 "docker",
                 "build",
-                "-t",
+                "--progress",
+                "plain",
+                "--tag",
                 self.__image_name(target),
                 targetpath,
             ],
@@ -149,11 +151,7 @@ class Project:
             stderr=PIPE,
         )
 
-        output = build_process.stdout.read().decode("utf-8")
-
         build_process.wait()
-
-        print(output)
 
         if build_process.returncode != 0:
             progress.advance(task)
@@ -172,7 +170,7 @@ class Project:
         Push the container image to the registry
         """
         task = progress.add_task(
-            description=f"Pushing container for {target}...", total=1
+            description=f"[cyan]Pushing container for {target}...", total=1
         )
 
         push_process = Popen(
@@ -260,6 +258,10 @@ class Project:
         print(f"WORKDIR {WORKSPACE}", file=f)
         print("COPY requirements.txt .", file=f)
         print("RUN pip install -r requirements.txt", file=f)
+
+        if target == "gpu":
+            print("", file=f)
+            print("RUN ln -s /usr/bin/python3 /usr/bin/python", file=f)
 
     def __get_target(self, target: str) -> Q8STarget:
         if hasattr(self.configuration.targets, target) is False:
