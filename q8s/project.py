@@ -110,9 +110,9 @@ class Project:
 
         if Path(cachepath).exists() is False:
             self.__images = {}
-
-        with open(cachepath, "r") as f:
-            self.__images = yaml.safe_load(f)
+        else:
+            with open(cachepath, "r") as f:
+                self.__images = yaml.safe_load(f)
 
     def cached_images(self, target: str):
         """
