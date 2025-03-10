@@ -22,6 +22,7 @@ def build(
     dry_run: Annotated[
         bool, typer.Option(help="Dry run does not push images to the registry")
     ] = False,
+    silent: Annotated[bool, typer.Option(help="Silent mode")] = True,
 ):
 
     with Progress(
@@ -44,12 +45,17 @@ def build(
 
         if target:
             project.build_container(
-                target=target.value, progress=progress, push=(not dry_run)
+                target=target.value,
+                progress=progress,
+                push=(not dry_run),
+                silent=silent,
             )
 
         else:
             for build in project.configuration.targets.keys():
-                project.build_container(build, progress=progress, push=(not dry_run))
+                project.build_container(
+                    build, progress=progress, push=(not dry_run), silent=silent
+                )
 
     print(f"Project {project.name} ready")
     project.update_images_cache()

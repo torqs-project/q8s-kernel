@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from io import StringIO
-from subprocess import Popen, PIPE
+import selectors
+from subprocess import Popen, PIPE, STDOUT
 from os.path import join
 from typing import List, Optional
 from rich.progress import Progress
@@ -126,7 +127,9 @@ class Project:
         with open(cachepath, "r") as f:
             return yaml.safe_load(f)[target]
 
-    def build_container(self, target: str, progress: Progress, push: bool = True):
+    def build_container(
+        self, target: str, progress: Progress, silent: bool, push: bool = True
+    ):
         """
         Build the container image
         """
@@ -148,10 +151,31 @@ class Project:
                 targetpath,
             ],
             stdout=PIPE,
-            stderr=PIPE,
+            stderr=STDOUT,
+            bufsize=1,
+            universal_newlines=True,
         )
 
-        build_process.wait()
+        def handle_output(stream, mask):
+            # Because the process' output is line buffered, there's only ever one
+            # line to read when this function is called
+            line = stream.readline()
+            if not silent:
+                progress.console.print(line, end="")
+
+        # Register callback for an "available for read" event from subprocess' stdout stream
+        selector = selectors.DefaultSelector()
+        selector.register(build_process.stdout, selectors.EVENT_READ, handle_output)
+
+        # Loop until subprocess is terminated
+        while build_process.poll() is None:
+            # Wait for events and handle them with their registered callbacks
+            events = selector.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
+
+        selector.close()
 
         if build_process.returncode != 0:
             progress.advance(task)
@@ -161,11 +185,11 @@ class Project:
             progress.advance(task, 1)
 
         if push:
-            self.push_container(target, progress)
+            self.push_container(target, progress, silent)
 
         self.__images[target] = self.__image_name(target)
 
-    def push_container(self, target: str, progress: Progress):
+    def push_container(self, target: str, progress: Progress, silent: bool):
         """
         Push the container image to the registry
         """
@@ -176,10 +200,31 @@ class Project:
         push_process = Popen(
             ["docker", "push", self.__image_name(target)],
             stdout=PIPE,
-            stderr=PIPE,
+            stderr=STDOUT,
+            bufsize=1,
+            universal_newlines=True,
         )
 
-        push_process.wait()
+        def handle_output(stream, mask):
+            # Because the process' output is line buffered, there's only ever one
+            # line to read when this function is called
+            line = stream.readline()
+            if not silent:
+                progress.console.print(line, end="")
+
+        # Register callback for an "available for read" event from subprocess' stdout stream
+        selector = selectors.DefaultSelector()
+        selector.register(push_process.stdout, selectors.EVENT_READ, handle_output)
+
+        # Loop until subprocess is terminated
+        while push_process.poll() is None:
+            # Wait for events and handle them with their registered callbacks
+            events = selector.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
+
+        selector.close()
 
         if push_process.returncode != 0:
             progress.advance(task)
