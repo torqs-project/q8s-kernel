@@ -1,10 +1,10 @@
 import os
 from ipykernel.kernelbase import Kernel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 import logging
 
 from q8s.execution import K8sContext
 
-USE_KUBERNETES = True
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
@@ -35,7 +35,15 @@ class Q8sKernel(Kernel):
             logging.error("KUBECONFIG not set")
             exit(1)
 
-        self.k8s_context = K8sContext(kubeconfig, self.progress)
+        self.k8s_context = K8sContext(
+            kubeconfig,
+            self.progress,
+            Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                expand=True,
+            ),
+        )
         self.k8s_context.set_container_image(self.docker_image)
         self.k8s_context.set_registry_pat(os.environ.get("REGISTRY_PAT", None))
 
@@ -59,11 +67,43 @@ class Q8sKernel(Kernel):
         logging.debug(output)
         logging.debug(stream_name)
 
-        stream_content = {
-            "name": stream_name,
-            "text": output,
-        }
-        self.send_response(self.iopub_socket, "stream", stream_content)
+        for line in output.split("\n"):
+            if line.startswith("data:image/png;base64,"):
+                self.send_response(
+                    self.iopub_socket,
+                    "display_data",
+                    {
+                        "data": {"image/png": line[22:]},
+                        "metadata": {},
+                    },
+                )
+            elif line.startswith("data:image/jpeg;base64,"):
+                self.send_response(
+                    self.iopub_socket,
+                    "display_data",
+                    {
+                        "data": {"image/jpeg": line[23:]},
+                        "metadata": {},
+                    },
+                )
+            elif line.startswith("data:image/svg+xml;base64,"):
+                self.send_response(
+                    self.iopub_socket,
+                    "display_data",
+                    {
+                        "data": {"image/svg+xml": line[25:]},
+                        "metadata": {},
+                    },
+                )
+            else:
+                self.send_response(
+                    self.iopub_socket,
+                    "display_data",
+                    {
+                        "data": {"text/plain": line},
+                        "metadata": {},
+                    },
+                )
 
         return {
             "status": "ok",
@@ -75,5 +115,10 @@ class Q8sKernel(Kernel):
 
     def progress(self, msg):
         self.send_response(
-            self.iopub_socket, "stream", {"name": "stdout", "text": f"{msg}\n"}
+            self.iopub_socket,
+            "display_data",
+            {
+                "data": {"text/plain": msg},
+                "metadata": {},
+            },
         )
