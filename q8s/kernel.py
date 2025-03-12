@@ -3,12 +3,39 @@ from ipykernel.kernelbase import Kernel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import logging
 
+from q8s.enums import Target
 from q8s.execution import K8sContext
+from q8s.project import CacheNotBuiltException, Project, ProjectNotFoundException
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 CODE = ["test_function", "import json; json.dumps(test_function)"]
+
+
+def load_docker_image():
+    try:
+        target = os.environ.get("TARGET", Target.gpu.value)
+
+        if target not in Target:
+            logging.error(f"Invalid target: {target}")
+            exit(1)
+
+        project = Project()
+
+        image = project.cached_images(target=target)
+    except ProjectNotFoundException as e:
+        logging.warning(e)
+        image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
+    except CacheNotBuiltException as e:
+        logging.warning(e)
+        image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
+    except Exception as e:
+        logging.error(f"Error loading project: {e}")
+        logging.warning("Q8Sproject file not found in current folder")
+        image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
+
+    return image
 
 
 class Q8sKernel(Kernel):
@@ -28,7 +55,7 @@ class Q8sKernel(Kernel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.docker_image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
+        self.docker_image = load_docker_image()
         kubeconfig = os.environ.get("KUBECONFIG", None)
 
         if kubeconfig is None:
