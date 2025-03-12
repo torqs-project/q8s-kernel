@@ -13,31 +13,6 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 CODE = ["test_function", "import json; json.dumps(test_function)"]
 
 
-def load_docker_image():
-    try:
-        target = os.environ.get("TARGET", Target.gpu.value)
-
-        if target not in Target:
-            logging.error(f"Invalid target: {target}")
-            exit(1)
-
-        project = Project()
-
-        image = project.cached_images(target=target)
-    except ProjectNotFoundException as e:
-        logging.warning(e)
-        image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
-    except CacheNotBuiltException as e:
-        logging.warning(e)
-        image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
-    except Exception as e:
-        logging.error(f"Error loading project: {e}")
-        logging.warning("Q8Sproject file not found in current folder")
-        image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
-
-    return image
-
-
 class Q8sKernel(Kernel):
     implementation = "q8s-kernel"
     implementation_version = "0.1.0"
@@ -55,11 +30,15 @@ class Q8sKernel(Kernel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.docker_image = load_docker_image()
+        self.docker_image = os.environ.get("DOCKER_IMAGE", None)
         kubeconfig = os.environ.get("KUBECONFIG", None)
 
         if kubeconfig is None:
             logging.error("KUBECONFIG not set")
+            exit(1)
+
+        if self.docker_image is None:
+            logging.error("DOCKER_IMAGE not set")
             exit(1)
 
         self.k8s_context = K8sContext(

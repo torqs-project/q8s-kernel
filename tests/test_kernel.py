@@ -1,7 +1,7 @@
 import os
 import unittest
 from unittest.mock import patch, MagicMock
-from q8s.kernel import load_docker_image
+from q8s.kernel import get_docker_image
 from q8s.project import ProjectNotFoundException, CacheNotBuiltException
 
 
@@ -15,7 +15,7 @@ class TestLoadDockerImage(unittest.TestCase):
         )
         mock_project.return_value.cached_images.return_value = "valid_image"
 
-        image = load_docker_image()
+        image = get_docker_image()
         self.assertEqual(image, "valid_image")
 
     @patch("q8s.kernel.os.environ.get")
@@ -25,7 +25,7 @@ class TestLoadDockerImage(unittest.TestCase):
         }.get(key, default)
 
         with self.assertRaises(SystemExit):
-            load_docker_image()
+            get_docker_image()
 
     @patch("q8s.kernel.Project")
     @patch("q8s.kernel.os.environ.get")
@@ -35,7 +35,7 @@ class TestLoadDockerImage(unittest.TestCase):
         )
         mock_project.side_effect = ProjectNotFoundException("Project not found")
 
-        image = load_docker_image()
+        image = get_docker_image()
         self.assertEqual(image, "vstirbu/benchmark-deps")
 
     @patch("q8s.kernel.Project")
@@ -46,7 +46,7 @@ class TestLoadDockerImage(unittest.TestCase):
         )
         mock_project.side_effect = CacheNotBuiltException("Cache not built")
 
-        image = load_docker_image()
+        image = get_docker_image()
         self.assertEqual(image, "vstirbu/benchmark-deps")
 
     @patch("q8s.kernel.Project")
@@ -57,7 +57,7 @@ class TestLoadDockerImage(unittest.TestCase):
         )
         mock_project.side_effect = Exception("General error")
 
-        image = load_docker_image()
+        image = get_docker_image()
         self.assertEqual(image, "vstirbu/benchmark-deps")
 
 
