@@ -138,12 +138,6 @@ def jupyter(
             envvar="REGISTRY_PAT",
         ),
     ] = None,
-    venv_path: Annotated[
-        Path,
-        typer.Option(
-            help="Path to the virtual environment",
-        ),
-    ] = None,
 ):
     if install:
         install_my_kernel_spec(user=False, prefix=sys.prefix)
@@ -157,12 +151,7 @@ def jupyter(
         environment_variables["REGISTRY_PAT"] = registry_pat
 
     jupyter_process = Popen(
-        [
-            sys.executable,
-            "-m",
-            "jupyter",
-            "lab",
-        ],
+        [sys.executable, "-m", "jupyter", "lab", "-y"],
         env=environment_variables,
     )
 

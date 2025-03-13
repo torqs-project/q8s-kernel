@@ -14,14 +14,17 @@ def get_docker_image(target: Target = None, logging=None):
 
         image = project.cached_images(target=target)
     except ProjectNotFoundException as e:
-        logging.warning(e)
+        if logging:
+            logging.warning(e)
         image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
     except CacheNotBuiltException as e:
-        logging.warning(e)
+        if logging:
+            logging.warning(e)
         image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
     except Exception as e:
-        logging.error(f"Error loading project: {e}")
-        logging.warning("Q8Sproject file not found in current folder")
+        if logging:
+            logging.error(f"Error loading project: {e}")
+            logging.warning("Q8Sproject file not found in current folder")
         image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
 
     return image
