@@ -3,7 +3,9 @@ from ipykernel.kernelbase import Kernel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import logging
 
+from q8s.enums import Target
 from q8s.execution import K8sContext
+from q8s.project import CacheNotBuiltException, Project, ProjectNotFoundException
 
 FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
@@ -28,11 +30,15 @@ class Q8sKernel(Kernel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.docker_image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
+        self.docker_image = os.environ.get("DOCKER_IMAGE", None)
         kubeconfig = os.environ.get("KUBECONFIG", None)
 
         if kubeconfig is None:
             logging.error("KUBECONFIG not set")
+            exit(1)
+
+        if self.docker_image is None:
+            logging.error("DOCKER_IMAGE not set")
             exit(1)
 
         self.k8s_context = K8sContext(

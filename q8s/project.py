@@ -69,6 +69,14 @@ class Q8SProject:
     docker: Q8SDocker
 
 
+class CacheNotBuiltException(Exception):
+    pass
+
+
+class ProjectNotFoundException(Exception):
+    pass
+
+
 class Project:
     name: str
     __path: str
@@ -76,7 +84,14 @@ class Project:
     __images: dict
 
     def __init__(self, path: str = "."):
-        self.configuration = from_dict(data_class=Q8SProject, data=load(path=path))
+        try:
+            configuration = from_dict(data_class=Q8SProject, data=load(path=path))
+        except FileNotFoundError:
+            raise ProjectNotFoundException(
+                "Q8Sproject file not found in current folder"
+            )
+
+        self.configuration = configuration
         self.name = self.configuration.name
         self.__path = path
 
@@ -115,14 +130,16 @@ class Project:
             with open(cachepath, "r") as f:
                 self.__images = yaml.safe_load(f)
 
-    def cached_images(self, target: str):
+    def cached_images(self, target: str) -> str:
         """
         Get the cached images
         """
         cachepath = join(self.__path, ".q8s_cache", "images")
 
         if Path(cachepath).exists() is False:
-            raise Exception("Images cache not found, Build the images first")
+            raise CacheNotBuiltException(
+                "Images cache not found, build the images first"
+            )
 
         with open(cachepath, "r") as f:
             return yaml.safe_load(f)[target]

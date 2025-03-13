@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from subprocess import Popen
 from time import sleep
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -9,6 +10,7 @@ from q8s.execution import K8sContext
 from q8s.enums import Target
 from q8s.install import install_my_kernel_spec
 from q8s.project import Project
+from q8s.utils import get_docker_image
 
 app = typer.Typer()
 
@@ -123,11 +125,37 @@ def jupyter(
             help="Install kernel spec for Jupyter",
         ),
     ] = False,
+    target: Annotated[
+        Target, typer.Option(help="Execution target", case_sensitive=False)
+    ] = Target.gpu,
+    kubeconfig: Annotated[
+        Path, typer.Option(help="Kubernetes configuration", envvar="KUBECONFIG")
+    ] = None,
+    registry_pat: Annotated[
+        str,
+        typer.Option(
+            help="Registry personal access token (PAT)",
+            envvar="REGISTRY_PAT",
+        ),
+    ] = None,
 ):
-    print("install:", install)
     if install:
         install_my_kernel_spec(user=False, prefix=sys.prefix)
         # install_my_kernel_spec(user=user, prefix=prefix)
+
+    image = get_docker_image(target)
+
+    environment_variables = {"KUBECONFIG": kubeconfig, "DOCKER_IMAGE": image}
+
+    if registry_pat:
+        environment_variables["REGISTRY_PAT"] = registry_pat
+
+    jupyter_process = Popen(
+        [sys.executable, "-m", "jupyter", "lab", "-y"],
+        env=environment_variables,
+    )
+
+    jupyter_process.wait()
 
 
 # if __name__ == "__main__":
