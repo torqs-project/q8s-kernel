@@ -6,7 +6,7 @@ import random
 import string
 from time import sleep
 from dotenv import dotenv_values
-from kubernetes import client, config
+from kubernetes import client, config, watch
 import pluggy
 from rich.progress import Progress
 
@@ -315,63 +315,54 @@ class K8sContext:
         """
         Wait for the job to complete and get its status.
         """
-        pod_name = None
-        job_completed = False
+        result = "stdout"
 
         execute_task = self.__progress.add_task("[cyan]Executing job...", total=1)
 
-        while not job_completed:
-            api_response = self.batch_api_instance.read_namespaced_job_status(
-                self.name, self.namespace
-            )
+        w = watch.Watch()
+        for event in w.stream(
+            self.batch_api_instance.list_namespaced_job,
+            namespace=self.namespace,
+            label_selector=f"qubernetes.dev/job.type=jupyter",
+        ):
+            if event["object"].metadata.name == self.name:
 
-            logging.debug("Job status='%s'" % str(api_response.status.start_time))
+                # Job execution completed
+                if event["object"].status.active is None:
+                    # Failed
+                    if event["object"].status.conditions is None:
+                        message = "Failed"
+                        color = "red"
+                        w.stop()
+                        result = "stderr"
 
-            if (
-                api_response.status.succeeded is not None
-                or api_response.status.failed is not None
-            ):
-                job_completed = True
-            elif api_response.status.active is not None:
-                if pod_name is None:
-                    pod_name = self.__get_pods_in_job()
+                    # Succeeded
+                    else:
+                        message = event["object"].status.conditions[-1].type
+                        color = "green"
 
-                s = self.core_api_instance.read_namespaced_pod_status(
-                    name=pod_name,
-                    namespace=self.namespace,
-                )
+                        if event["object"].status.conditions[-1].type == "Complete":
+                            w.stop()
+                # Job schedukled
+                elif event["type"] == "ADDED":
+                    message = "Scheduled"
+                    color = "orange3"
+                # Job running
+                else:
+                    message = "Running"
+                    color = "yellow"
 
-                try:
-                    if s.status.container_statuses[0].state.terminated is not None:
-                        if (
-                            s.status.container_statuses[0].state.terminated.exit_code
-                            == 0
-                        ):
-                            job_completed = True
-                except TypeError:
-                    pass
-                finally:
+                if self.jupyter_logger is None:
                     self.__progress.update(
                         execute_task,
-                        description=f"[cyan]Executing job... [green]{s.status.phase}",
+                        description=f"[cyan]Executing job... [{color}]{message}",
                     )
-                    if self.jupyter_logger is not None:
-                        self.jupyter_logger(f"Pod status: {s.status.phase}")
-
-            sleep(1)
+                else:
+                    self.jupyter_logger(f"Pod status: {message}")
 
         self.__progress.advance(execute_task, 1)
 
-        return self.__map_job_status_to_stream(api_response.status)
-
-    def __map_job_status_to_stream(self, status):
-        logging.debug("Job status='%s'" % str(status))
-        if status.succeeded is not None:
-            return "stdout"
-        elif status.failed is not None:
-            return "stderr"
-        else:
-            return "unknown"
+        return result
 
     def __prepare_environment(self):
         """
