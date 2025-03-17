@@ -320,6 +320,7 @@ class K8sContext:
         execute_task = self.__progress.add_task("[cyan]Executing job...", total=1)
 
         w = watch.Watch()
+
         for event in w.stream(
             self.batch_api_instance.list_namespaced_job,
             namespace=self.namespace,

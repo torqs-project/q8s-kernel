@@ -67,6 +67,7 @@ class Q8SProject:
     python_env: Q8SPythonEnv
     targets: Q8STargets
     docker: Q8SDocker
+    kubeconfig: str
 
 
 class CacheNotBuiltException(Exception):
@@ -96,6 +97,10 @@ class Project:
         self.__path = path
 
         self.load_images_cache()
+
+    @property
+    def kubeconfig(self):
+        return Path(self.configuration.kubeconfig)
 
     def init_cache(self):
         """
