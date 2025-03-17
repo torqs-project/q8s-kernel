@@ -10,7 +10,7 @@ from q8s.execution import K8sContext
 from q8s.enums import Target
 from q8s.install import install_my_kernel_spec
 from q8s.project import Project
-from q8s.utils import get_docker_image
+from q8s.utils import get_docker_image, get_kubeconfig
 
 app = typer.Typer()
 
@@ -144,6 +144,8 @@ def jupyter(
         # install_my_kernel_spec(user=user, prefix=prefix)
 
     image = get_docker_image(target)
+
+    kubeconfig = get_kubeconfig(kubeconfig)
 
     environment_variables = {"KUBECONFIG": kubeconfig, "DOCKER_IMAGE": image}
 
