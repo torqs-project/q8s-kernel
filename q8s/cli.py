@@ -10,7 +10,7 @@ from q8s.execution import K8sContext
 from q8s.enums import Target
 from q8s.install import install_my_kernel_spec
 from q8s.project import Project
-from q8s.utils import get_docker_image
+from q8s.utils import get_docker_image, get_kubeconfig
 
 app = typer.Typer()
 
@@ -84,18 +84,18 @@ def execute(
     if image is None:
         project = Project()
         image = project.cached_images(target.value)
+        if kubeconfig is None:
+            kubeconfig = project.kubeconfig
 
     if kubeconfig.exists() is False:
         typer.echo(f"kubeconfig file {kubeconfig} does not exist")
         raise typer.Exit(code=1)
 
-    kubeconfig = os.environ.get("KUBECONFIG", kubeconfig.as_posix())
+    # kubeconfig = os.environ.get("KUBECONFIG", kubeconfig.as_posix())
 
     if kubeconfig is None:
         typer.echo("KUBECONFIG not set")
         raise typer.Exit(code=1)
-
-    # config.load_kube_config(kubeconfig)
 
     with Progress(
         SpinnerColumn(),
@@ -103,7 +103,7 @@ def execute(
         TimeElapsedColumn(),
         expand=True,
     ) as progress:
-        k8s_context = K8sContext(kubeconfig, progress=progress)
+        k8s_context = K8sContext(kubeconfig.as_posix(), progress=progress)
         k8s_context.set_target(target)
         k8s_context.set_container_image(image)
         k8s_context.set_registry_pat(registry_pat)
@@ -144,6 +144,8 @@ def jupyter(
         # install_my_kernel_spec(user=user, prefix=prefix)
 
     image = get_docker_image(target)
+
+    kubeconfig = get_kubeconfig(kubeconfig)
 
     environment_variables = {"KUBECONFIG": kubeconfig, "DOCKER_IMAGE": image}
 

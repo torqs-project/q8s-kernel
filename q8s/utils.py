@@ -28,3 +28,14 @@ def get_docker_image(target: Target = None, logging=None):
         image = os.environ.get("DOCKER_IMAGE", "vstirbu/benchmark-deps")
 
     return image
+
+
+def get_kubeconfig(kubeconfig=None):
+    if kubeconfig:
+        return kubeconfig
+
+    try:
+        project = Project()
+        return project.kubeconfig
+    except ProjectNotFoundException as e:
+        return None
