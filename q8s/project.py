@@ -84,7 +84,7 @@ class Project:
     configuration: Q8SProject
     __images: dict
 
-    def __init__(self, path: str = "."):
+    def __init__(self, path: str = Path.cwd()):
         try:
             configuration = from_dict(data_class=Q8SProject, data=load(path=path))
         except FileNotFoundError:
