@@ -133,6 +133,7 @@ def jupyter(
     kubeconfig: Annotated[
         Path, typer.Option(help="Kubernetes configuration", envvar="KUBECONFIG")
     ] = None,
+    image: Annotated[str, typer.Option(help="Docker image")] = None,
     registry_pat: Annotated[
         str,
         typer.Option(
@@ -145,7 +146,7 @@ def jupyter(
         install_my_kernel_spec(user=False, prefix=sys.prefix)
         # install_my_kernel_spec(user=user, prefix=prefix)
 
-    image = get_docker_image(target)
+    image = get_docker_image(target) if image is None else image
 
     kubeconfig = get_kubeconfig(kubeconfig)
 
