@@ -81,11 +81,13 @@ def execute(
         ),
     ] = None,
 ):
+    project = Project()
+
     if image is None:
-        project = Project()
         image = project.cached_images(target.value)
-        if kubeconfig is None:
-            kubeconfig = project.kubeconfig
+
+    if kubeconfig is None:
+        kubeconfig = project.kubeconfig
 
     if kubeconfig.exists() is False:
         typer.echo(f"kubeconfig file {kubeconfig} does not exist")
