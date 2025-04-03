@@ -150,7 +150,7 @@ def jupyter(
 
     kubeconfig = get_kubeconfig(kubeconfig)
 
-    environment_variables = {"KUBECONFIG": kubeconfig, "DOCKER_IMAGE": image}
+    environment_variables = {"KUBECONFIG": kubeconfig.as_posix(), "DOCKER_IMAGE": image}
 
     if registry_pat:
         environment_variables["REGISTRY_PAT"] = registry_pat
