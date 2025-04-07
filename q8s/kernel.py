@@ -1,5 +1,6 @@
 import os
 from ipykernel.kernelbase import Kernel
+from ipykernel.comm import CommManager
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import logging
 
@@ -26,9 +27,22 @@ class Q8sKernel(Kernel):
         "nbconvert_exporter": "python",
     }
     banner = "q8s"
+    comm_manager: CommManager = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+        self.comm_manager = CommManager(
+            kernel=self,
+        )
+
+        # Register a comm target
+        self.comm_manager.register_target("dev.qubernetes.kernel", self._on_comm_open)
+
+        # Register the comm_open handler
+        self.shell_handlers["comm_open"] = self.comm_manager.comm_open
+        self.shell_handlers["comm_msg"] = self.comm_manager.comm_msg
+        self.shell_handlers["comm_close"] = self.comm_manager.comm_close
 
         self.docker_image = os.environ.get("DOCKER_IMAGE", None)
         kubeconfig = os.environ.get("KUBECONFIG", None)
@@ -128,3 +142,38 @@ class Q8sKernel(Kernel):
                 "metadata": {},
             },
         )
+
+    def _on_comm_open(self, comm, msg):
+        """Handle the frontend opening a Comm"""
+        logging.info("Comm opened by frontend")
+        logging.info(f"Comm ID: {comm.comm_id}")
+
+        # Send a message to the frontend with the current state of the kernel
+        comm.send(
+            {
+                "command": "init",
+                "targets": Project().configuration.targets.keys(),
+                "selected_target": self.k8s_context.target.name,
+            }
+        )
+
+        @comm.on_msg
+        def _recv(msg):
+            data = msg["content"]["data"]
+            logging.info(f"Received from frontend: {data}")
+
+            # Respond to the frontend
+            if data["command"] == "set_target":
+                self.k8s_context.set_target(Target(data["payload"]["target"]))
+                logging.info(f"update target {data["payload"]["target"]}")
+            else:
+                comm.send(
+                    {
+                        "response": "pong",
+                        "echo": data,
+                    }
+                )
+
+        @comm.on_close
+        def _closed(msg):
+            logging.info("Comm closed by frontend")
