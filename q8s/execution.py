@@ -50,8 +50,9 @@ class K8sContext:
         self.__progress.console.print("Cluster configuration loaded")
         self.__progress.update(task_config, completed=True)
 
+        _, active_context = config.list_kube_config_contexts(config_file=kubeconfig)
+
         try:
-            _, active_context = config.list_kube_config_contexts(config_file=kubeconfig)
             self.namespace = active_context["context"]["namespace"]
         except KeyError:
             self.namespace = "default"

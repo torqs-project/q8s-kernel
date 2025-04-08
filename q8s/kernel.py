@@ -13,8 +13,6 @@ logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 CODE = ["test_function", "import json; json.dumps(test_function)"]
 
-kernel_comm_identifier = "dev.qubernetes.kernel"
-
 
 class Q8sKernel(Kernel):
     implementation = "q8s-kernel"
@@ -34,7 +32,17 @@ class Q8sKernel(Kernel):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.__initialize_comm_manager()
+        self.comm_manager = CommManager(
+            kernel=self,
+        )
+
+        # Register a comm target
+        self.comm_manager.register_target("dev.qubernetes.kernel", self._on_comm_open)
+
+        # Register the comm_open handler
+        self.shell_handlers["comm_open"] = self.comm_manager.comm_open
+        self.shell_handlers["comm_msg"] = self.comm_manager.comm_msg
+        self.shell_handlers["comm_close"] = self.comm_manager.comm_close
 
         self.docker_image = os.environ.get("DOCKER_IMAGE", None)
         kubeconfig = os.environ.get("KUBECONFIG", None)
@@ -62,19 +70,6 @@ class Q8sKernel(Kernel):
         logging.info("q8s kernel started")
         logging.info(f"docker image: {self.docker_image}")
 
-    def __initialize_comm_manager(self):
-        self.comm_manager = CommManager(
-            kernel=self,
-        )
-
-        # Register a comm target
-        self.comm_manager.register_target(kernel_comm_identifier, self._on_comm_open)
-
-        # Register the comm_open handler
-        self.shell_handlers["comm_open"] = self.comm_manager.comm_open
-        self.shell_handlers["comm_msg"] = self.comm_manager.comm_msg
-        self.shell_handlers["comm_close"] = self.comm_manager.comm_close
-
     def do_execute(
         self,
         code,
@@ -83,7 +78,7 @@ class Q8sKernel(Kernel):
         user_expressions=None,
         allow_stdin=False,
     ):
-        logging.debug(f"Executing code:\n{code}")
+        logging.info(f"Executing code:\n{code}")
 
         output, stream_name = self.k8s_context.execute(code)
 
