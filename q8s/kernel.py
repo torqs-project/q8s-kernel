@@ -1,5 +1,6 @@
 import os
 from ipykernel.kernelbase import Kernel
+from ipykernel.comm import CommManager
 from rich.progress import Progress, SpinnerColumn, TextColumn
 import logging
 
@@ -11,6 +12,8 @@ FORMAT = "[%(levelname)s %(asctime)-15s q8s_kernel] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
 
 CODE = ["test_function", "import json; json.dumps(test_function)"]
+
+kernel_comm_identifier = "dev.qubernetes.kernel"
 
 
 class Q8sKernel(Kernel):
@@ -26,9 +29,12 @@ class Q8sKernel(Kernel):
         "nbconvert_exporter": "python",
     }
     banner = "q8s"
+    comm_manager: CommManager = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+        self.__initialize_comm_manager()
 
         self.docker_image = os.environ.get("DOCKER_IMAGE", None)
         kubeconfig = os.environ.get("KUBECONFIG", None)
@@ -56,6 +62,19 @@ class Q8sKernel(Kernel):
         logging.info("q8s kernel started")
         logging.info(f"docker image: {self.docker_image}")
 
+    def __initialize_comm_manager(self):
+        self.comm_manager = CommManager(
+            kernel=self,
+        )
+
+        # Register a comm target
+        self.comm_manager.register_target(kernel_comm_identifier, self._on_comm_open)
+
+        # Register the comm_open handler
+        self.shell_handlers["comm_open"] = self.comm_manager.comm_open
+        self.shell_handlers["comm_msg"] = self.comm_manager.comm_msg
+        self.shell_handlers["comm_close"] = self.comm_manager.comm_close
+
     def do_execute(
         self,
         code,
@@ -64,7 +83,7 @@ class Q8sKernel(Kernel):
         user_expressions=None,
         allow_stdin=False,
     ):
-        logging.info(f"Executing code:\n{code}")
+        logging.debug(f"Executing code:\n{code}")
 
         output, stream_name = self.k8s_context.execute(code)
 
@@ -128,3 +147,32 @@ class Q8sKernel(Kernel):
                 "metadata": {},
             },
         )
+
+    def _on_comm_open(self, comm, msg):
+        """Handle the frontend opening a Comm"""
+        logging.info("Comm opened by frontend")
+        logging.info(f"Comm ID: {comm.comm_id}")
+
+        # Send a message to the frontend with the current state of the kernel
+        comm.send(
+            {
+                "command": "init",
+                "targets": Project().configuration.targets.keys(),
+                "selected_target": self.k8s_context.target.name,
+            }
+        )
+
+        @comm.on_msg
+        def _recv(msg):
+            data = msg["content"]["data"]
+            logging.info(f"Received from frontend: {data}")
+
+            # Respond to the frontend
+            if data["command"] == "set_target":
+                self.k8s_context.set_target(Target(data["payload"]["target"]))
+                logging.info(f"update target {data['payload']['target']}")
+                logging.warning(f"Unknown command: {data['command']}")
+
+        @comm.on_close
+        def _closed(msg):
+            logging.info("Comm closed by frontend")
