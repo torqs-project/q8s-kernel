@@ -172,12 +172,7 @@ class Q8sKernel(Kernel):
                 self.k8s_context.set_target(Target(data["payload"]["target"]))
                 logging.info(f"update target {data["payload"]["target"]}")
             else:
-                comm.send(
-                    {
-                        "response": "pong",
-                        "echo": data,
-                    }
-                )
+                logging.warning(f"Unknown command: {data['command']}")
 
         @comm.on_close
         def _closed(msg):
