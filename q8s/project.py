@@ -51,6 +51,7 @@ class Q8STarget:
 class Q8STargets:
     cpu: Optional[Q8STarget]
     gpu: Optional[Q8STarget]
+    qpu: Optional[Q8STarget]
 
     def keys(self):
         return self.__dataclass_fields__.keys()
@@ -311,6 +312,7 @@ class Project:
         base_images = {
             "cpu": "--platform=linux/amd64 python:3.12-slim",
             "gpu": "vstirbu/q8s-cuda12:latest",
+            "qpu": "--platform=linux/amd64 python:3.12-slim",
         }
         print(f"\nFROM {base_images[target]}", file=f)
         print("", file=f)

@@ -170,7 +170,11 @@ class Q8sKernel(Kernel):
             # Respond to the frontend
             if data["command"] == "set_target":
                 self.k8s_context.set_target(Target(data["payload"]["target"]))
-                logging.info(f"update target {data['payload']['target']}")
+                project = Project()
+                image = project.cached_images(data["payload"]["target"])
+                self.k8s_context.set_container_image(image)
+                logging.info(f"Updated execution target to {data['payload']['target']}")
+            else:
                 logging.warning(f"Unknown command: {data['command']}")
 
         @comm.on_close

@@ -99,6 +99,8 @@ class K8sContext:
             target=self.target, name=self.name, namespace=self.namespace, env=self.__env
         )
 
+        logging.debug(f"Container image: {self.container_image}")
+
         template = extract_non_none_value(
             self.jm.hook.makejob(
                 code=code,

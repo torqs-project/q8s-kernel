@@ -40,7 +40,14 @@ def build(
         progress.advance(task)
 
         if init:
-            task = progress.add_task(description="[cyan]Initializing cache...", total=1)
+            # Convert the keys to a string with enumeration
+            targets_str = ", ".join(
+                [f"{key}" for i, key in enumerate(project.configuration.targets.keys())]
+            )
+            task = progress.add_task(
+                description=f"[cyan]Initializing cache for targets: {targets_str}...",
+                total=1,
+            )
 
             project.init_cache()
             progress.advance(task)
