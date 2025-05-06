@@ -54,7 +54,11 @@ class Q8STargets:
     qpu: Optional[Q8STarget]
 
     def keys(self):
-        return self.__dataclass_fields__.keys()
+        return [
+            key
+            for key in self.__dataclass_fields__.keys()
+            if getattr(self, key) is not None
+        ]
 
 
 @dataclass
