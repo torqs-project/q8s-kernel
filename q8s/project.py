@@ -173,6 +173,8 @@ class Project:
                 "build",
                 "--progress",
                 "plain",
+                "--platform",
+                "linux/amd64",
                 "--tag",
                 self.__image_name(target),
                 targetpath,
@@ -314,9 +316,9 @@ class Project:
         print("# Do not edit manually", file=f)
 
         base_images = {
-            "cpu": "--platform=linux/amd64 python:3.12-slim",
-            "gpu": "vstirbu/q8s-cuda12:latest",
-            "qpu": "--platform=linux/amd64 python:3.12-slim",
+            "cpu": "python:3.12-slim",
+            "gpu": "ghcr.io/qubernetes-dev/cuda:12.8.1",
+            "qpu": "python:3.12-slim",
         }
         print(f"\nFROM {base_images[target]}", file=f)
         print("", file=f)
